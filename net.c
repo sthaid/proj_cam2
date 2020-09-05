@@ -9,9 +9,9 @@
 
 int listen_sd = -1;
 
-// --------------------------------------------------------------------------------------
+// -----------------  INIT  -------------------------------------------------------------
 
-int p2p_init(bool is_webcam)
+int net_init(bool is_webcam)
 {
     int                optval, sd;
     struct sockaddr_in addr;
@@ -52,9 +52,9 @@ int p2p_init(bool is_webcam)
     return 0;
 }
 
-// --------------------------------------------------------------------------------------
+// -----------------  ESTABLISH CONNECTION  ---------------------------------------------
 
-int p2p_connect(char * wc_name, char * password, int * connect_status)
+int net_connect(char * wc_name, char * password, int * connect_status)
 {
     int rc, sd;
     struct sockaddr_in sin;
@@ -82,7 +82,7 @@ int p2p_connect(char * wc_name, char * password, int * connect_status)
     return sd;
 }
 
-int p2p_accept(void)
+int net_accept(void)
 {
     struct sockaddr_in addr;
     socklen_t          addrlen;
@@ -110,7 +110,7 @@ int p2p_accept(void)
     return sd;
 }
 
-int p2p_disconnect(int handle)
+int net_disconnect(int handle)
 {
     // xxx check handle is valid
 
@@ -122,22 +122,29 @@ int p2p_disconnect(int handle)
     return 0;
 }
 
-// --------------------------------------------------------------------------------------
+// -----------------  SEND AND RECEIVE  -------------------------------------------------
 
-int p2p_send(int handle, void * buff, int len)
+// return:
+// - len: success
+// - -1:  error
+int net_send(int handle, void * buff, int len)
 {
+    // XXX tbd
     return do_send(handle, buff, len);
 }
 
-int p2p_recv(int handle, void * buff, int len)
+// - len: success
+// - 0:   when non-blocking is requested, and len bytes are not available
+// - -1:  error
+int net_recv(int handle, void * buff, int len)
 {
-    // XXX add timeout
+    // XXX tbd
     return do_recv(handle, buff, len);
 }
 
-// --------------------------------------------------------------------------------------
+// -----------------  GET STATS  --------------------------------------------------------
 
-int p2p_get_stats(int handle, p2p_stats_t * stats)
+int net_get_stats(int handle, net_stats_t * stats)
 {
     // XXX later
     return 0;

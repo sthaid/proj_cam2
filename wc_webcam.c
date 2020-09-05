@@ -231,11 +231,11 @@ void * wc_svc_webcam(void * cx)
             msg.u.mt_frame.status       = (_status); \
             msg.u.mt_frame.temperature  = (_temperature); \
             msg.u.mt_frame.motion       = (_motion); \
-            if (p2p_send(handle, &msg, sizeof(webcam_msg_t)) < 0) { \
-                ERROR("p2p_send frame hdr failed\n"); \
+            if (net_send(handle, &msg, sizeof(webcam_msg_t)) < 0) { \
+                ERROR("net_send frame hdr failed\n"); \
                 ret = -1; \
-            } else if (((_data_len) > 0) && (p2p_send(handle, (_data), (_data_len)) < 0)) { \
-                ERROR("p2p_send frame data failed\n"); \
+            } else if (((_data_len) > 0) && (net_send(handle, (_data), (_data_len)) < 0)) { \
+                ERROR("net_send frame data failed\n"); \
                 ret = -1; \
             } \
             ret; \
@@ -294,8 +294,8 @@ void * wc_svc_webcam(void * cx)
         // XXX also keep track of partial recvs
         //
 
-        if (p2p_recv(handle, &msg, sizeof(msg)) < 0) {
-            ERROR("p2p_recv failed\n");
+        if (net_recv(handle, &msg, sizeof(msg)) < 0) {
+            ERROR("net_recv failed\n");
             goto done;
         }
 
@@ -350,16 +350,16 @@ void * wc_svc_webcam(void * cx)
         //
 
         if (microsec_timer() - last_status_msg_send_time_us > 1000000) {
-            p2p_stats_t p2p_stats;
+            net_stats_t net_stats;
 
-            p2p_get_stats(handle, &p2p_stats);
+            net_get_stats(handle, &net_stats);
             msg.msg_type = MSG_TYPE_STATUS;
             msg.u.mt_status.version         = VERSION;
             msg.u.mt_status.cam_status      = cam_status;
             msg.u.mt_status.rp_status       = rp_status;
             msg.u.mt_status.rp_duration_us  = RP_DURATION;
-            if (p2p_send(handle, &msg, sizeof(webcam_msg_t)) < 0) {
-                ERROR("p2p_send status failed\n");
+            if (net_send(handle, &msg, sizeof(webcam_msg_t)) < 0) {
+                ERROR("net_send status failed\n");
                 goto done;
             }
             last_status_msg_send_time_us = microsec_timer();
@@ -591,7 +591,7 @@ void * wc_svc_webcam(void * cx)
 
 done:
     REMOVE_LIVE_FRAME_REFERENCE();
-    p2p_disconnect(handle);
+    net_disconnect(handle);
     INFO("terminating\n");
     return NULL;
 }

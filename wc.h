@@ -76,15 +76,15 @@ int config_write(char * config_path, config_t * config, int config_version);
 
 typedef struct {
     int tbd;
-} p2p_stats_t;
+} net_stats_t;
 
-int p2p_init(bool is_webcam);
-int p2p_connect(char * wc_name, char * password, int * connect_status);
-int p2p_accept(void);
-int p2p_disconnect(int handle);
-int p2p_send(int handle, void * buff, int len);
-int p2p_recv(int handle, void * buff, int len);
-int p2p_get_stats(int handle, p2p_stats_t * stats);
+int net_init(bool is_webcam);
+int net_connect(char * wc_name, char * password, int * connect_status);
+int net_accept(void);
+int net_disconnect(int handle);
+int net_send(int handle, void * buff, int len);
+int net_recv(int handle, void * buff, int len);
+int net_get_stats(int handle, net_stats_t * stats);
 
 // -----------------  WEBCAM DEFINITIONS  ----------------------------------------------
 

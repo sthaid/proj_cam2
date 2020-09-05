@@ -54,9 +54,9 @@ int main(int argc, char **argv)
         }
     }
 
-    // initialize p2p connection module
-    if (p2p_init(16) < 0) {
-        FATAL("p2p_init failed\n");
+    // initialize net connection module
+    if (net_init(16) < 0) {
+        FATAL("net_init failed\n");
     }
 
     // initialize message logging
@@ -79,15 +79,15 @@ int main(int argc, char **argv)
     // loop forever
     while (true) {
         // accept a connection
-        handle = p2p_accept();
+        handle = net_accept();
         if (handle < 0) {
-            ERROR("p2p_accept failed\n");
+            ERROR("net_accept failed\n");
             sleep(1);
             continue;
         }
 
         // create the service thread 
-        INFO("creating thread wc_svc_webcam, p2p_handle=%d\n", handle);
+        INFO("creating thread wc_svc_webcam, net_handle=%d\n", handle);
         pthread_create(&thread, &thread_attr, wc_svc_webcam, (void*)(long)handle);
     }
 

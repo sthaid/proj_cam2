@@ -404,10 +404,10 @@ int main(int argc, char **argv)
     logmsg_init(CONFIG_DEBUG == 'Y' ? "stderr" : "none");
     INFO("STARTING %s\n", argv[0]);
 
-    // initialize p2p connection modules, 
+    // initialize net connection modules, 
     // note: false means this is being called by viewer
-    if (p2p_init(false) < 0) {
-        FATAL("p2p_init failed\n");
+    if (net_init(false) < 0) {
+        FATAL("net_init failed\n");
     }
 
     // it is important that the viewer and the webcam computers have their 
@@ -1822,7 +1822,7 @@ void * webcam_thread(void * cx)
     #define DISCONNECT() \
         do { \
             if (handle != INVALID_HANDLE) { \
-                p2p_disconnect(handle); \
+                net_disconnect(handle); \
                 handle = INVALID_HANDLE; \
                 bzero(&wc->status, sizeof(wc->status)); \
                 wc->recvd_bytes = 0; \
@@ -1872,7 +1872,7 @@ void * webcam_thread(void * cx)
             DISPLAY_TEXT("CONNECTING", "", "");
 
             // attempt to connect to wc_name
-            h = p2p_connect(CONFIG_PASSWORD, wc->image_name, &connect_status);
+            h = net_connect(CONFIG_PASSWORD, wc->image_name, &connect_status);
             if (h < 0) {  
                 STATE_CHANGE(STATE_CONNECTING_ERROR, "CONNECT ERROR", status2str(connect_status), "");
                 break;
@@ -1941,7 +1941,7 @@ void * webcam_thread(void * cx)
                 bzero(&msg,sizeof(msg));
                 msg.msg_type = MSG_TYPE_CMD_SET_MODE;   
                 msg.u.mt_cmd_set_mode = wc->mode;
-                if ((ret = p2p_send(handle, &msg, sizeof(webcam_msg_t))) < 0) {
+                if ((ret = net_send(handle, &msg, sizeof(webcam_msg_t))) < 0) {
                     STATE_CHANGE(STATE_CONNECTED_ERROR, "ERROR", "send mode msg", "");
                     break;
                 }
@@ -1967,7 +1967,7 @@ void * webcam_thread(void * cx)
                 bzero(&msg,sizeof(msg));
                 msg.msg_type = MSG_TYPE_CMD_SET_MIN_SEND_INTVL_US;   
                 msg.u.mt_cmd_min_send_intvl.us = intvl_us;
-                if ((ret = p2p_send(handle, &msg, sizeof(webcam_msg_t))) < 0) {
+                if ((ret = net_send(handle, &msg, sizeof(webcam_msg_t))) < 0) {
                     STATE_CHANGE(STATE_CONNECTED_ERROR, "ERROR", "send intvl msg", "");
                     break;
                 }
@@ -1979,7 +1979,7 @@ void * webcam_thread(void * cx)
                 if (wc->mode.mode == MODE_LIVE) {
                     bzero(&msg,sizeof(msg));
                     msg.msg_type = MSG_TYPE_CMD_LIVE_MODE_CHANGE_RES;
-                    if ((ret = p2p_send(handle, &msg, sizeof(webcam_msg_t))) < 0) {
+                    if ((ret = net_send(handle, &msg, sizeof(webcam_msg_t))) < 0) {
                         STATE_CHANGE(STATE_CONNECTED_ERROR, "ERROR", "send res msg", "");
                         break;
                     }
@@ -2020,7 +2020,7 @@ void * webcam_thread(void * cx)
 
             // receive msg header  
             // XXX maybe this can wait
-            if ((ret = p2p_recv(handle, &msg, sizeof(msg))) != sizeof(msg)) {
+            if ((ret = net_recv(handle, &msg, sizeof(msg))) != sizeof(msg)) {
                 if (ret == -1) {
                     STATE_CHANGE(STATE_CONNECTED_ERROR, "ERROR", "recv msg hdr", "");
                 }
@@ -2042,7 +2042,7 @@ void * webcam_thread(void * cx)
 
                 // receive msg data  
                 if (data_len > 0) {
-                    if ((ret = p2p_recv(handle, data, data_len)) != data_len) {
+                    if ((ret = net_recv(handle, data, data_len)) != data_len) {
                         STATE_CHANGE(STATE_CONNECTED_ERROR, "ERROR", "recv msg data", "");
                         break;
                     }
