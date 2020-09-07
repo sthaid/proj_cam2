@@ -5,10 +5,9 @@
 int config_read(char * config_path, config_t * config, int config_version)
 {
     FILE * fp;
-    int    i, version=0;
+    int    i, version=0, len;
     char * name;
     char * value;
-    char * saveptr;
     char   s[100] = "";
 
     // open config_file and verify version, 
@@ -26,19 +25,31 @@ int config_read(char * config_path, config_t * config, int config_version)
     }
 
     // read config entries
-    while (fgets(s, sizeof(s), fp) != NULL) {
-        name = strtok_r(s, " \n", &saveptr);
+    while (memset(s, 0, sizeof(s)), fgets(s, sizeof(s), fp) != NULL) {
+        // remove trailing \n
+        len = strlen(s);
+        if (len > 0 && s[len-1] == '\n') {
+            s[len-1] = '\0';
+        }
+
+        // use strtok to get name
+        name = strtok(s, " ");
         if (name == NULL || name[0] == '#') {
             continue;
         }
 
-        value = strtok_r(NULL, "\n", &saveptr);
-        if (value == NULL) {
-            value = "";
+        // value can have embedded spaces, but leading spaces are skipped;
+        // value starts after skipping spaces and extends to the end of s
+        value = name + strlen(name) + 1;
+        while (*value == ' ' && *value != '\0') {
+            value++;
         }
 
+        // xxx del
         INFO("name='%s' value='%s'\n", name, value);
 
+        // search the config array for a matching name;
+        // if found, save the new value associated with the name
         for (i = 0; config[i].name[0]; i++) {
             if (strcmp(name, config[i].name) == 0) {
                 strcpy(config[i].value, value);
