@@ -12,13 +12,13 @@
 // variables
 //
 
-static int  debug_mode;
+static int debug_mode;
 
 //
 // prototypes
 //
 
-int wc_svc_webcam_init(void);
+int wc_svc_webcam_init(void);    // XXX these 2 lines should be in hdr file
 void * wc_svc_webcam(void * cx);
 
 // -----------------  MAIN  ---------------------------------------------------------
@@ -27,7 +27,8 @@ int main(int argc, char **argv)
 {
     struct rlimit  rl;
     pthread_t      thread;
-    int            ret, handle;
+    int            ret;
+    void         * handle;
     char           opt_char;
     pthread_attr_t thread_attr;
 
@@ -54,8 +55,8 @@ int main(int argc, char **argv)
         }
     }
 
-    // initialize net connection module
-    if (net_init(16) < 0) {
+    // initialize net connection module, set is_server=true
+    if (net_init(true, 9990) < 0) {
         FATAL("net_init failed\n");
     }
 
@@ -80,15 +81,15 @@ int main(int argc, char **argv)
     while (true) {
         // accept a connection
         handle = net_accept();
-        if (handle < 0) {
+        if (handle == NULL) {
             ERROR("net_accept failed\n");
             sleep(1);
             continue;
         }
 
         // create the service thread 
-        INFO("creating thread wc_svc_webcam, net_handle=%d\n", handle);
-        pthread_create(&thread, &thread_attr, wc_svc_webcam, (void*)(long)handle);
+        INFO("creating thread wc_svc_webcam\n");
+        pthread_create(&thread, &thread_attr, wc_svc_webcam, handle);
     }
 
     INFO("TERMINATING %s\n", argv[0]);

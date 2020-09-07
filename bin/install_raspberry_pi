@@ -1,0 +1,42 @@
+#!/bin/bash
+
+if [ $# -eq 0 ]
+then
+  echo hostname list expected
+  exit
+fi
+
+for host in $*
+do
+    echo
+    echo "----------- INSTALL_RASPBERRY_PI $host  ----------"
+
+    echo
+    echo SEND WC_SERVER BIN FILE TO $host
+    ssh pi@$host mkdir -p bin
+    scp -p bin/ws_* pi@$host:bin
+
+    echo
+    echo SEND WC_SERVER SRC FILE TO $host
+    ssh pi@$host mkdir -p proj_cam2
+    scp -p \
+      wc_main.c wc_webcam.c net.c util.c jpeg_decode.c temper.c wc.h Makefile \
+      pi@$host:proj_cam2
+
+    echo
+    echo KILLALL WC_SERVER 
+    ssh pi@$host killall -SIGKILL wc_server 
+
+    echo 
+    echo BUILD 
+    ssh pi@$host "cd proj_cam2; make wc_server"
+
+    echo
+    echo "START WC_SERVER"
+    ssh pi@$host  "cd proj_cam2; ./wc_server < /dev/null > /dev/null 2>&1 &"
+
+    echo
+    echo "QUERY WC_SERVER"
+    ssh pi@$host  "ps -f -C wc_server"
+done
+

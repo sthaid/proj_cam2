@@ -258,7 +258,7 @@ void * wc_svc_webcam(void * cx)
 
 
     // common variables
-    int           handle                        = (long)cx;
+    void        * handle                        = cx;
     int           ret                           = 0;
     struct mode_s mode                          = {0,0,0,0,0};
     bool          mode_is_new                   = false;
@@ -290,11 +290,10 @@ void * wc_svc_webcam(void * cx)
 
         //
         // perform non-blocking recv to get client command
-        // XXX now change to use a timeout  -1 forever, 0 non block, else usec
-        // XXX also keep track of partial recvs
         //
 
-        if (net_recv(handle, &msg, sizeof(msg)) < 0) {
+        ret = net_recv(handle, &msg, sizeof(msg), true);
+        if (ret < 0) {
             ERROR("net_recv failed\n");
             goto done;
         }
@@ -352,7 +351,7 @@ void * wc_svc_webcam(void * cx)
         if (microsec_timer() - last_status_msg_send_time_us > 1000000) {
             net_stats_t net_stats;
 
-            net_get_stats(handle, &net_stats);
+            net_get_stats(handle, &net_stats);  // XXX not used yet
             msg.msg_type = MSG_TYPE_STATUS;
             msg.u.mt_status.version         = VERSION;
             msg.u.mt_status.cam_status      = cam_status;

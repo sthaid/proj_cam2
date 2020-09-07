@@ -32,10 +32,12 @@ int config_read(char * config_path, config_t * config, int config_version)
             continue;
         }
 
-        value = strtok_r(NULL, " \n", &saveptr);
+        value = strtok_r(NULL, "\n", &saveptr);
         if (value == NULL) {
             value = "";
         }
+
+        INFO("name='%s' value='%s'\n", name, value);
 
         for (i = 0; config[i].name[0]; i++) {
             if (strcmp(name, config[i].name) == 0) {
@@ -73,159 +75,6 @@ int config_write(char * config_path, config_t * config, int config_version)
     // close
     fclose(fp);
     return 0;
-}
-
-// -----------------  SOCKET UTILS  ---------------------------------------
-
-int getsockaddr(char * node, int port, struct sockaddr_in * ret_addr)
-{
-    struct addrinfo   hints;
-    struct addrinfo * result;
-    char              port_str[20];
-    int               ret;
-
-    sprintf(port_str, "%d", port);
-
-    bzero(&hints, sizeof(hints));
-    hints.ai_family   = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_protocol = 0;
-    hints.ai_flags    = AI_NUMERICSERV;
-
-    ret = getaddrinfo(node, port_str, &hints, &result);
-    if (ret != 0) {
-        ERROR("failed to get address of %s, %s\n", node, gai_strerror(ret));
-        return -1;
-    }
-    if (result->ai_addrlen != sizeof(*ret_addr)) {
-        ERROR("getaddrinfo result addrlen=%d, expected=%d\n",
-            (int)result->ai_addrlen, (int)sizeof(*ret_addr));
-        return -1;
-    }
-
-    *ret_addr = *(struct sockaddr_in*)result->ai_addr;
-    freeaddrinfo(result);
-    return 0;
-}
-
-
-#if 0  // XXX del
-void set_sock_opts(int sfd, int reuseaddr, int sndbuf, int rcvbuf, int rcvto_us)
-{
-    int ret;
-
-    if (reuseaddr != -1) {
-        ret = setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, &reuseaddr, sizeof(reuseaddr));
-        if (ret == -1) {
-            ERROR("setsockopt SO_REUSEADDR, %s", strerror(errno));
-        }
-    }
-
-    if (sndbuf != -1) {
-        ret = setsockopt(sfd, SOL_SOCKET, SO_SNDBUF, &sndbuf, sizeof(sndbuf));
-        if (ret == -1) {
-            ERROR("setsockopt SO_SNDBUF, %s", strerror(errno));
-        }
-    }
-
-    if (rcvbuf != -1) {
-        ret = setsockopt(sfd, SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof(rcvbuf));
-        if (ret == -1) {
-            ERROR("setsockopt SO_RCVBUF, %s", strerror(errno));
-        }
-    }
-
-    if (rcvto_us != -1) {
-        struct timeval rcvto = {rcvto_us/1000000, rcvto_us%1000000};
-        ret = setsockopt(sfd, SOL_SOCKET, SO_RCVTIMEO, &rcvto, sizeof(rcvto));
-        if (ret == -1) {
-            ERROR("setsockopt SO_RCVBUF, %s", strerror(errno));
-        }
-    }
-}
-#endif
-
-char * sock_to_options_str(int sfd, char * s, int slen)
-{
-    int reuseaddr=0, sndbuf=0, rcvbuf=0;
-    struct timeval rcvto={0,0};
-    socklen_t reuseaddr_len=4, sndbuf_len=4, rcvbuf_len=4, rcvto_len=sizeof(rcvto);
-
-    getsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, &reuseaddr, &reuseaddr_len);
-    getsockopt(sfd, SOL_SOCKET, SO_SNDBUF,    &sndbuf   , &sndbuf_len);
-    getsockopt(sfd, SOL_SOCKET, SO_RCVBUF,    &rcvbuf   , &rcvbuf_len);
-    getsockopt(sfd, SOL_SOCKET, SO_RCVTIMEO,  &rcvto,     &rcvto_len);
-    snprintf(s, slen, "REUSEADDR=%d SNDBUF=%d RCVBUF=%d RCVTIMEO=%d", 
-             reuseaddr, sndbuf, rcvbuf,
-             (int)(rcvto.tv_sec+1000000*rcvto.tv_usec));
-
-    return s;
-}
-
-char * sock_addr_to_str(char * s, int slen, struct sockaddr * addr)
-{
-    char addr_str[100];
-    int port;
-
-    if (addr->sa_family == AF_INET) {
-        inet_ntop(AF_INET,
-                  &((struct sockaddr_in*)addr)->sin_addr,
-                  addr_str, sizeof(addr_str));
-        port = ((struct sockaddr_in*)addr)->sin_port;
-    } else if (addr->sa_family == AF_INET6) {
-        inet_ntop(AF_INET6,
-                  &((struct sockaddr_in6*)addr)->sin6_addr,
-                 addr_str, sizeof(addr_str));
-        port = ((struct sockaddr_in6*)addr)->sin6_port;
-    } else {
-        snprintf(s,slen,"Invalid AddrFamily %d", addr->sa_family);
-        return s;        
-    }
-
-    snprintf(s,slen,"%s:%d",addr_str,htons(port));
-    return s;
-}
-
-int do_recv(int sockfd, void * recv_buff, size_t len)
-{
-    int ret;
-    size_t len_remaining = len;
-
-    while (len_remaining) {
-        ret = recv(sockfd, recv_buff, len_remaining, MSG_WAITALL);
-        if (ret <= 0) {
-            if (ret == 0) {
-                errno = ENODATA;
-            }
-            return -1;
-        }
-
-        len_remaining -= ret;
-        recv_buff += ret;
-    }
-
-    return len;
-}
-
-int do_send(int sockfd, void * send_buff, size_t len)
-{
-    int ret;
-    size_t len_remaining = len;
-
-    while (len_remaining) {
-        ret = send(sockfd, send_buff, len_remaining, MSG_NOSIGNAL);
-        if (ret <= 0) {
-            if (ret == 0) {
-                errno = ENODATA;
-            }
-            return -1;
-        }
-
-        len_remaining -= ret;
-        send_buff += ret;
-    }
-
-    return len;
 }
 
 // -----------------  LOGGING & PRINTMSG  ---------------------------------
@@ -353,15 +202,6 @@ void logmsg(char *lvl, const char *func, char *fmt, ...)
     }
 }
 
-void printmsg(char *fmt, ...) 
-{
-    va_list ap;
-
-    va_start(ap, fmt);
-    vfprintf(stderr, fmt, ap);
-    va_end(ap);
-}
-
 #else
 
 #include <SDL.h>
@@ -418,15 +258,6 @@ void logmsg(char *lvl, const char *func, char *fmt, ...)
                      time2str(time_str, time(NULL), false),
                      lvl, func, msg);
     }
-}
-
-void printmsg(char *fmt, ...) 
-{
-    va_list ap;
-
-    va_start(ap, fmt);
-    SDL_LogMessageV(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_INFO, fmt, ap);
-    va_end(ap);
 }
 
 #endif

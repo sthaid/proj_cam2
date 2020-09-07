@@ -65,12 +65,12 @@ typedef struct {
 #define MAX_CONFIG_VALUE_STR 100
 
 typedef struct {
-    const char * name;
-    char         value[MAX_CONFIG_VALUE_STR];
+    const char *name;
+    char        value[MAX_CONFIG_VALUE_STR];
 } config_t;
 
-int config_read(char * config_path, config_t * config, int config_version);
-int config_write(char * config_path, config_t * config, int config_version);
+int config_read(char *config_path, config_t *config, int config_version);
+int config_write(char *config_path, config_t *config, int config_version);
 
 // -----------------  NETWORK COMMUNICATION  -----------------------------------------
 
@@ -78,13 +78,13 @@ typedef struct {
     int tbd;
 } net_stats_t;
 
-int net_init(bool is_webcam);
-int net_connect(char * wc_name, char * password, int * connect_status);
-int net_accept(void);
-int net_disconnect(int handle);
-int net_send(int handle, void * buff, int len);
-int net_recv(int handle, void * buff, int len);
-int net_get_stats(int handle, net_stats_t * stats);
+int net_init(bool is_server, int server_port);
+void *net_connect(char *ipaddr, int port, char *password, int *connect_status);
+void *net_accept(void);
+void net_disconnect(void *handle);
+int net_send(void *handle, void *buff, int len);
+int net_recv(void *handle, void *buff, int len, bool non_blocking);
+void net_get_stats(void *handle, net_stats_t *stats);
 
 // -----------------  WEBCAM DEFINITIONS  ----------------------------------------------
 
@@ -293,8 +293,8 @@ typedef struct {
 #define JPEG_DECODE_MODE_GS    1
 #define JPEG_DECODE_MODE_YUY2  2
 
-int jpeg_decode(uint32_t cxid, uint32_t jpeg_decode_mode, uint8_t * jpeg, uint32_t jpeg_size,
-                uint8_t ** out_buf, uint32_t * width, uint32_t * height);
+int jpeg_decode(uint32_t cxid, uint32_t jpeg_decode_mode, uint8_t *jpeg, uint32_t jpeg_size,
+                uint8_t **out_buf, uint32_t *width, uint32_t *height);
 
 // -----------------  TEMPERATURE MONITOR  -------------------------------------------
 
@@ -304,6 +304,8 @@ int temper_init(void);
 int temper_read(void);
 
 // -----------------  UTILS  ---------------------------------------------------------
+
+//#define DEBUG_PRINTS
 
 #define INFO(fmt, args...) \
     do { \
@@ -331,41 +333,29 @@ int temper_read(void);
   #define DEBUG(fmt, args...) 
 #endif
 
-#define PRINTF(fmt, args...) \
-    do { \
-        printmsg(fmt, ## args); \
-    } while (0)
-
 #define MAX_LOGMSG_FILE_SIZE 0x100000
 
-#define TIMESPEC_TO_US(ts) ((uint64_t)(ts)->tv_sec * 1000000 + (ts)->tv_nsec / 1000)
-#define TIMEVAL_TO_US(tv)  ((uint64_t)(tv)->tv_sec * 1000000 + (tv)->tv_usec)
+#define TIMESPEC_TO_US(ts) ((uint64_t)(ts)->tv_sec *1000000 + (ts)->tv_nsec / 1000)
+#define TIMEVAL_TO_US(tv)  ((uint64_t)(tv)->tv_sec *1000000 + (tv)->tv_usec)
 
-#define MAX_TIME_STR    32  //xxx
-#define MAX_INT_STR     32  //xxx
+#define MAX_TIME_STR    32
+#define MAX_INT_STR     32
 
-int getsockaddr(char * node, int port, struct sockaddr_in * ret_addr);
-char * sock_to_options_str(int sfd, char * s, int slen);
-char * sock_addr_to_str(char * s, int slen, struct sockaddr * addr);
-int do_recv(int sockfd, void * recv_buff, size_t len);
-int do_send(int sockfd, void * send_buff, size_t len);
+void logmsg_init(char *logmsg_file);
+void logmsg(char *lvl, const char *func, char *fmt, ...) __attribute__ ((format (printf, 3, 4)));
 
-void logmsg_init(char * logmsg_file);
-void logmsg(char * lvl, const char * func, char * fmt, ...) __attribute__ ((format (printf, 3, 4)));
-void printmsg(char *fmt, ...);
-
-void convert_yuy2_to_rgb(uint8_t * yuy2, uint8_t * rgb, int pixels);
-void convert_yuy2_to_gs(uint8_t * yuy2, uint8_t * gs, int pixels);
+void convert_yuy2_to_rgb(uint8_t *yuy2, uint8_t *rgb, int pixels);
+void convert_yuy2_to_gs(uint8_t *yuy2, uint8_t *gs, int pixels);
 
 uint64_t microsec_timer(void);
 time_t get_real_time_sec(void);
 uint64_t get_real_time_us(void);
-char * time2str(char * str, time_t time, bool gmt);
+char *time2str(char *str, time_t time, bool gmt);
 
 bool ntp_synced(void);
 
-uint64_t fs_avail_bytes(char * path);
+uint64_t fs_avail_bytes(char *path);
 
-char * status2str(uint32_t status);
-char * int2str(char * str, int64_t n);
+char *status2str(uint32_t status);
+char *int2str(char *str, int64_t n);
 

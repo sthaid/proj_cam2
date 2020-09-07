@@ -1,15 +1,12 @@
+// XXX use fixed size display on linux, and lock to landscape mode on phone
+// XXX need to handle change name
+
 #include "wc.h"
 #include "button_sound.h"
 
 #include <SDL.h>
 #include <SDL_ttf.h>
 #include <SDL_mixer.h>
-
-// XXX is locking needed around SDL_UpdateTexture
-// XXX changing Android orientatiton not always working
-// XXX mode locking
-// XXX portrait issues
-// XXX do we really need LANDSCAE and PORTRAIT
 
 //
 // defines 
@@ -21,26 +18,18 @@
 #define WIN_WIDTH_INITIAL           1280
 #define WIN_HEIGHT_INITIAL          800
 
-#define CTL_COLS_LANDSCAPE          14
-#define CTLB_ROWS_LANDSCAPE         7
-#define CTL_ROWS_PORTRAIT           7 
+#define CTL_COLS                    14
+#define CTL_ROWS                    7
 #define KEYBD_STR_COLS              14
 
 #define MS                          1000
 #define HIGHLIGHT_TIME_US           (2000*MS)
 #define RECONNECT_TIME_US           (10000*MS)
 
-#define NO_WCNAME                   "<none>"
-#define NO_USERNAME                 "<username>"
-#define NO_PASSWORD                 "<password>"
-
-#define CONFIG_USERNAME             (config[0].value)
-#define CONFIG_PASSWORD             (config[1].value)
-#define CONFIG_PROXY                (config[2].value[0])    // N, Y
-#define CONFIG_LOCALTIME            (config[3].value[0])    // N, Y
-#define CONFIG_WC_NAME(idx)         (config[4+(idx)].value)
-#define CONFIG_ZOOM                 (config[8].value[0])    // A, B, C, D, N
-#define CONFIG_DEBUG                (config[9].value[0])    // N, Y
+#define CONFIG_WC_DEFINE(idx)       (config[(idx)].value)
+#define CONFIG_WC_SELECT(idx)       (config[10+(idx)].value)
+#define CONFIG_ZOOM                 (config[14].value[0])    // A, B, C, D, N
+#define CONFIG_DEBUG                (config[15].value[0])    // N, Y
 
 #ifndef ANDROID 
 #define SDL_FLAGS                   SDL_WINDOW_RESIZABLE
@@ -80,10 +69,6 @@
 #define MOUSE_EVENT_PLAYBACK_HOUR_PLUS        16
 #define MOUSE_EVENT_PLAYBACK_MINUTE_MINUS     17
 #define MOUSE_EVENT_PLAYBACK_MINUTE_PLUS      18
-#define MOUSE_EVENT_CONFIG_PROXY              20
-#define MOUSE_EVENT_CONFIG_TIME               21
-#define MOUSE_EVENT_CONFIG_USERNAME           23
-#define MOUSE_EVENT_CONFIG_PASSWORD           24
 #define MOUSE_EVENT_CONFIG_KEY_ASCII_FIRST    32     // ascii space
 #define MOUSE_EVENT_CONFIG_KEY_ASCII_LAST     126    // ascii '~'
 #define MOUSE_EVENT_CONFIG_KEY_SHIFT          127
@@ -243,6 +228,10 @@
 //
 
 typedef struct {
+    char            name[100];
+    char            ipaddr[100];
+    int             port;
+
     uint32_t        state;
     struct mode_s   mode;
     struct status_s status; 
@@ -317,31 +306,24 @@ event_t          event;
 
 char             config_path[MAX_STR];
 const int        config_version = 2;
-#if 0
-config_t         config[] = { { "username",  "steve"     },
-                              { "password",  "PASSWORD"  },
-                              { "proxy",     "N"         },
-                              { "localtime", "Y"         },
-                              { "wc_name_A", "computer"  },
-                              { "wc_name_B", "dining"    },
-                              { "wc_name_C", "basement"  },
-                              { "wc_name_D", "backyard"  },
-                              { "zoom",      "N",        },
-                              { "debug",     "N"         },
-                              { "",          ""          } };
-#else
-config_t         config[] = { { "username",  "demo"        },
-                              { "password",  "demo"        },
-                              { "proxy",     "N"           },
-                              { "localtime", "Y"           },
-                              { "wc_name_A", "st_backyard" },
-                              { "wc_name_B", NO_WCNAME     },
-                              { "wc_name_C", NO_WCNAME     },
-                              { "wc_name_D", NO_WCNAME     },
+//XXX need a way to enter the defs
+config_t         config[] = { { "wc_define_0",  "test0 192.168.1.121 9990" },
+                              { "wc_define_1",  "test1 73.114.235.71 9991" },
+                              { "wc_define_2",  "" },
+                              { "wc_define_3",  "" },
+                              { "wc_define_4",  "" },
+                              { "wc_define_5",  "" },
+                              { "wc_define_6",  "" },
+                              { "wc_define_7",  "" },
+                              { "wc_define_8",  "" },
+                              { "wc_define_9",  "" },
+                              { "wc_select_A", "0"        },
+                              { "wc_select_B", "1"     },
+                              { "wc_select_C", ""     },
+                              { "wc_select_D", ""     },
                               { "zoom",      "N",          },
-                              { "debug",     "N"           },
+                              { "debug",     "Y"           },
                               { "",          ""            } };
-#endif
 
 //
 // prototypes
@@ -406,7 +388,7 @@ int main(int argc, char **argv)
 
     // initialize net connection modules, 
     // note: false means this is being called by viewer
-    if (net_init(false) < 0) {
+    if (net_init(false,0) < 0) {
         FATAL("net_init failed\n");
     }
 
@@ -416,8 +398,10 @@ int main(int argc, char **argv)
     // call is made to check if ntp is synced; and if it is not synced then to determine
     // a time offset which is incorporated in the time returned by calls to 
     // get_real_time_us and get_real_time_sec
+//AAA
     // XXX should call ntp_synced here
     // XXX ntp_init();
+    // XXX still support the tablet
 
     // initialize to live mode
     SET_CTL_MODE_LIVE();
@@ -537,7 +521,6 @@ int main(int argc, char **argv)
 void display_handler(void)
 {
     #define CONFIG_KEYBD_MODE_INACTIVE 0
-    #define CONFIG_KEYBD_MODE_PASSWORD 2
 
     #define INIT_POS(r,_x,_y,_w,_h) \
         do { \
@@ -551,9 +534,6 @@ void display_handler(void)
                                (ev.button.x < (pos).x + (pos).w + 10) && \
                                (ev.button.y >= (pos).y - 10) && \
                                (ev.button.y < (pos).y + (pos).h + 10))
-
-    #define LANDSCAPE() (win_width >= win_height)
-    #define PORTRAIT()  (!LANDSCAPE())
 
     #define SDL_WINDOWEVENT_STR(x) \
        ((x) == SDL_WINDOWEVENT_SHOWN        ? "SDL_WINDOWEVENT_SHOWN"        : \
@@ -807,13 +787,7 @@ void display_handler(void)
             secs = (mode.pb_submode == PB_SUBMODE_PLAY
                     ? PB_SUBMODE_PLAY_REAL_TIME_US(&mode) / 1000000
                     : mode.pb_real_time_us / 1000000);
-
-            if (CONFIG_LOCALTIME == 'Y') {
-                localtime_r(&secs, &tm);
-            } else {
-                gmtime_r(&secs, &tm);
-            }
-
+            localtime_r(&secs, &tm);
             delta_sec = tm.tm_min * 60 + tm.tm_sec;
             if (tm.tm_min == 0 && tm.tm_sec <= 3) {
                 delta_sec += 3600;
@@ -828,13 +802,7 @@ void display_handler(void)
             secs = (mode.pb_submode == PB_SUBMODE_PLAY
                     ? PB_SUBMODE_PLAY_REAL_TIME_US(&mode) / 1000000
                     : mode.pb_real_time_us / 1000000);
-
-            if (CONFIG_LOCALTIME == 'Y') {
-                localtime_r(&secs, &tm);
-            } else {
-                gmtime_r(&secs, &tm);
-            }
-
+            localtime_r(&secs, &tm);
             delta_sec = 3600 - (tm.tm_min * 60 + tm.tm_sec);
             if (tm.tm_min == 59 && tm.tm_sec >= 56) {
                 delta_sec += 3600;
@@ -849,13 +817,7 @@ void display_handler(void)
             secs = (mode.pb_submode == PB_SUBMODE_PLAY
                     ? PB_SUBMODE_PLAY_REAL_TIME_US(&mode) / 1000000
                     : mode.pb_real_time_us / 1000000);
-
-            if (CONFIG_LOCALTIME == 'Y') {
-                localtime_r(&secs, &tm);
-            } else {
-                gmtime_r(&secs, &tm);
-            }
-
+            localtime_r(&secs, &tm);
             delta_sec = tm.tm_sec;
             if (tm.tm_sec <= 3) {
                 delta_sec += 60;
@@ -870,30 +832,12 @@ void display_handler(void)
             secs = (mode.pb_submode == PB_SUBMODE_PLAY
                     ? PB_SUBMODE_PLAY_REAL_TIME_US(&mode) / 1000000
                     : mode.pb_real_time_us / 1000000);
-
-            if (CONFIG_LOCALTIME == 'Y') {
-                localtime_r(&secs, &tm);
-            } else {
-                gmtime_r(&secs, &tm);
-            }
-
+            localtime_r(&secs, &tm);
             delta_sec = 60 - tm.tm_sec;
             if (tm.tm_sec >= 56) {
                 delta_sec += 60;
             }
             SET_CTL_MODE_PLAYBACK_TIME(delta_sec);
-
-        } else if (event.mouse_event == MOUSE_EVENT_CONFIG_PROXY) {
-            CONFIG_PROXY = (CONFIG_PROXY == 'N' ? 'Y' : 'N');
-            CONFIG_WRITE();
-
-        } else if (event.mouse_event == MOUSE_EVENT_CONFIG_TIME) {
-            CONFIG_LOCALTIME = (CONFIG_LOCALTIME == 'N' ? 'Y' : 'N');
-            CONFIG_WRITE();
-
-        } else if (event.mouse_event == MOUSE_EVENT_CONFIG_USERNAME) {
-            config_keybd_str[0] = '\0';
-            config_keybd_shift  = false;
 
         } else if (event.mouse_event >= MOUSE_EVENT_CONFIG_KEY_ASCII_FIRST && 
                    event.mouse_event <= MOUSE_EVENT_CONFIG_KEY_ASCII_LAST) {
@@ -919,7 +863,7 @@ void display_handler(void)
             }
 
         } else if (event.mouse_event == MOUSE_EVENT_CONFIG_KEY_ENTER) {
-            // xxx nothing here
+            // XXX nothing here - there was before
             config_keybd_mode   = CONFIG_KEYBD_MODE_INACTIVE;
             config_keybd_str[0] = '\0';
             config_keybd_shift  = false;
@@ -984,14 +928,14 @@ void display_handler(void)
     time_t secs;
     if (mode.mode == MODE_LIVE) {
         secs = get_real_time_sec();
-        time2str(date_and_time_str, secs, CONFIG_LOCALTIME=='N');
+        time2str(date_and_time_str, secs, false);
     } else if (mode.mode == MODE_PLAYBACK) {
         if (mode.pb_submode == PB_SUBMODE_PLAY) {
             secs = PB_SUBMODE_PLAY_REAL_TIME_US(&mode) / 1000000;
         } else {
             secs = mode.pb_real_time_us / 1000000;
         }
-        time2str(date_and_time_str, secs, CONFIG_LOCALTIME=='N');
+        time2str(date_and_time_str, secs, false);
     } else {
         bzero(date_and_time_str, sizeof(date_and_time_str));
     }
@@ -1050,113 +994,55 @@ void display_handler(void)
     // --------------------------------------------
     bzero(event.mouse_event_pos, sizeof(event.mouse_event_pos));
 
-    if (LANDSCAPE()) {
-        // landscape ...
+    #define CTL_WIDTH  (CTL_COLS * font[0].char_width)
 
-        #define CTL_WIDTH  (CTL_COLS_LANDSCAPE * font[0].char_width)
+    INIT_POS(ctlpane, 
+             win_width-CTL_WIDTH, 0,     // x, y
+             CTL_WIDTH, win_height);     // w, h
+    INIT_POS(ctlbpane, 
+             win_width-CTL_WIDTH, win_height-CTL_ROWS*font[0].char_height,
+             CTL_WIDTH, CTL_ROWS*font[0].char_height);
+    INIT_POS(keybdpane,
+             0, 0,
+             win_width-CTL_WIDTH, win_height);
 
-        INIT_POS(ctlpane, 
-                 win_width-CTL_WIDTH, 0,     // x, y
-                 CTL_WIDTH, win_height);     // w, h
-        INIT_POS(ctlbpane, 
-                 win_width-CTL_WIDTH, win_height-CTLB_ROWS_LANDSCAPE*font[0].char_height,
-                 CTL_WIDTH, CTLB_ROWS_LANDSCAPE*font[0].char_height);
-        INIT_POS(keybdpane,
-                 0, 0,
-                 win_width-CTL_WIDTH, win_height);
+    int small_win_count = 0;
+    for (i = 0; i < MAX_WEBCAM; i++) {
+        int wc_x, wc_y, wc_w, wc_h;
 
-        int small_win_count = 0;
-        for (i = 0; i < MAX_WEBCAM; i++) {
-            int wc_x, wc_y, wc_w, wc_h;
-
-            if (CONFIG_ZOOM >= 'A' && CONFIG_ZOOM <= 'D') {
-                int wc_zw = (double)(win_width - CTL_WIDTH) / 1.33;
-                if ('A'+i == CONFIG_ZOOM) {
-                    wc_x = 0;
-                    wc_y = 0;
-                    wc_w = wc_zw;
-                    wc_h = win_height;
-                } else {
-                    wc_x = wc_zw;
-                    wc_y = small_win_count * (win_height / 3);
-                    wc_w = win_width - CTL_WIDTH - wc_zw;
-                    wc_h = (win_height / 3);
-                    small_win_count++;
-                }
+        if (CONFIG_ZOOM >= 'A' && CONFIG_ZOOM <= 'D') {
+            int wc_zw = (double)(win_width - CTL_WIDTH) / 1.33;
+            if ('A'+i == CONFIG_ZOOM) {
+                wc_x = 0;
+                wc_y = 0;
+                wc_w = wc_zw;
+                wc_h = win_height;
             } else {
-                wc_w = (win_width - CTL_WIDTH) / 2;
-                wc_h = win_height / 2;
-                switch (i) {
-                case 0: wc_x = 0;    wc_y = 0;    break;
-                case 1: wc_x = wc_w; wc_y = 0;    break;
-                case 2: wc_x = 0;    wc_y = wc_h; break;
-                case 3: wc_x = wc_w; wc_y = wc_h; break;
-                }
+                wc_x = wc_zw;
+                wc_y = small_win_count * (win_height / 3);
+                wc_w = win_width - CTL_WIDTH - wc_zw;
+                wc_h = (win_height / 3);
+                small_win_count++;
             }
-            INIT_POS(wcpane[i], 
-                     wc_x, wc_y, 
-                     wc_w, wc_h);
-            INIT_POS(wctitlepane[i],
-                     wc_x + 1, wc_y + 1,
-                     wc_w - 2, font[0].char_height);
-            INIT_POS(wcimagepane[i],
-                     wc_x + 1, wc_y + 2 + font[0].char_height,
-                     wc_w - 2, wc_h - font[0].char_height - 3);
-        }
-    } else {
-        // portrait ...
-
-        #define CTL_HEIGHT  (CTL_ROWS_PORTRAIT * font[0].char_height)
-        #define CTLB_WIDTH  (14 * font[0].char_width)
-
-        INIT_POS(ctlpane, 
-                 0, win_height-CTL_HEIGHT,   // x, y
-                 win_width, CTL_HEIGHT);     // w, h
-        INIT_POS(ctlbpane, 
-                 win_width-CTLB_WIDTH, win_height-CTL_HEIGHT,
-                 CTLB_WIDTH, CTL_HEIGHT);
-        INIT_POS(keybdpane,
-                 0, 0,
-                 win_width, win_height-CTL_HEIGHT);
-
-        int small_win_count = 0;
-        for (i = 0; i < MAX_WEBCAM; i++) {
-            int wc_x, wc_y, wc_w, wc_h;
-
-            if (CONFIG_ZOOM >= 'A' && CONFIG_ZOOM <= 'D') {
-                int wc_zh = (double)(win_height - CTL_HEIGHT) * 0.75;
-                if ('A'+i == CONFIG_ZOOM) {
-                    wc_x = 0;
-                    wc_y = 0;
-                    wc_w = win_width;
-                    wc_h = wc_zh;
-                } else {
-                    wc_x = small_win_count * (win_width / 3);
-                    wc_y = wc_zh;
-                    wc_w = win_width / 3;
-                    wc_h = win_height - CTL_HEIGHT - wc_zh;
-                    small_win_count++;
-                }
-            } else {
-                wc_w = win_width / 2;
-                wc_h = (win_height - CTL_HEIGHT) / 2;
-                switch (i) {
-                case 0: wc_x = 0;    wc_y = 0;    break;
-                case 1: wc_x = wc_w; wc_y = 0;    break;
-                case 2: wc_x = 0;    wc_y = wc_h; break;
-                case 3: wc_x = wc_w; wc_y = wc_h; break;
-                }
+        } else {
+            wc_w = (win_width - CTL_WIDTH) / 2;
+            wc_h = win_height / 2;
+            switch (i) {
+            case 0: wc_x = 0;    wc_y = 0;    break;
+            case 1: wc_x = wc_w; wc_y = 0;    break;
+            case 2: wc_x = 0;    wc_y = wc_h; break;
+            case 3: wc_x = wc_w; wc_y = wc_h; break;
             }
-            INIT_POS(wcpane[i], 
-                     wc_x, wc_y, 
-                     wc_w, wc_h);
-            INIT_POS(wctitlepane[i],
-                     wc_x + 1, wc_y + 1,
-                     wc_w - 2, font[0].char_height);
-            INIT_POS(wcimagepane[i],
-                     wc_x + 1, wc_y + 2 + font[0].char_height,
-                     wc_w - 2, wc_h - font[0].char_height - 3);
         }
+        INIT_POS(wcpane[i], 
+                 wc_x, wc_y, 
+                 wc_w, wc_h);
+        INIT_POS(wctitlepane[i],
+                 wc_x + 1, wc_y + 1,
+                 wc_w - 2, font[0].char_height);
+        INIT_POS(wcimagepane[i],
+                 wc_x + 1, wc_y + 2 + font[0].char_height,
+                 wc_w - 2, wc_h - font[0].char_height - 3);
     }
 
     // ---------------------------------
@@ -1175,12 +1061,12 @@ void display_handler(void)
         //
         // CONFIGURE
         // 
-        // -- SERVER --  XXXXXXXXXXXXXXXXX
+        // -- SERVER --  xxxxxxxxxxxxxxxxxxxxxxxxx
         // <username>
         // 
         // <password>
         // 
-        // SERVER_CHECK  XXXXXXXXXXXXXXXXX
+        // SERVER_CHECK  xxxxxxxxxxxxxxxxxxxxxxxxx
         // OK: WC_CNT=7  
         // 
         // -- NETWORK --
@@ -1190,56 +1076,14 @@ void display_handler(void)
         // LOCALTIME
         // OFF=5000 MS
 
-        if (LANDSCAPE()) {
-            // title line
-            render_text(&ctlpane, 0, 0, "CONFIGURE", MOUSE_EVENT_NONE);
+        // title line
+        render_text(&ctlpane, 0, 0, "CONFIGURE", MOUSE_EVENT_NONE);
 
-            // server section
-            render_text(&ctlpane, 1.5, 0, "-- SERVER --", MOUSE_EVENT_NONE);
+        // server section
+        render_text(&ctlpane, 1.5, 0, "-- SERVER --", MOUSE_EVENT_NONE);
 
-            len = strlen(str);
-            render_text(&ctlpane, 2.5, 0, str, MOUSE_EVENT_CONFIG_USERNAME);
-
-            // network section
-            render_text(&ctlpane, 8.0, 0, "-- NETWORK --", MOUSE_EVENT_NONE);
-            render_text(&ctlpane, 9.0, 0, 
-                        CONFIG_PROXY == 'N' ? "PROXY DISABLED" : "PROXY ENABLED",
-                        MOUSE_EVENT_CONFIG_PROXY);
-
-#if 0
-            // time section
-            render_text(&ctlpane, 10.5, 0, "-- TIME --", MOUSE_EVENT_NONE);
-            render_text(&ctlpane, 11.5, 0, 
-                        CONFIG_LOCALTIME == 'N' ? "GMT" : "LOCALTIME",
-                        MOUSE_EVENT_CONFIG_TIME);
-            sprintf(str, "OFF=%"PRId64" MS", system_clock_offset_us/1000);
-            render_text(&ctlpane, 12.5, 0, str, MOUSE_EVENT_NONE);
-#endif
-        } else {
-            // PORTRAIT ...
-            //
-            // server section
-            render_text(&ctlpane, 0, 0, "-- SERVER --", MOUSE_EVENT_NONE);
-
-            len = strlen(str);
-            render_text(&ctlpane, 1, 0, str, MOUSE_EVENT_CONFIG_USERNAME);
-
-            // network section
-            render_text(&ctlpane, 0, 18, "-- NETWORK --", MOUSE_EVENT_NONE);
-            render_text(&ctlpane, 1, 18, 
-                        CONFIG_PROXY == 'N' ? "PROXY DISABLED" : "PROXY ENABLED",
-                        MOUSE_EVENT_CONFIG_PROXY);
-
-#if 0
-            // time section
-            render_text(&ctlpane, 3, 18, "-- TIME --", MOUSE_EVENT_NONE);
-            render_text(&ctlpane, 4, 18, 
-                        CONFIG_LOCALTIME == 'N' ? "GMT" : "LOCALTIME",
-                        MOUSE_EVENT_CONFIG_TIME);
-            sprintf(str, "OFF=%"PRId64" MS", system_clock_offset_us/1000);
-            render_text(&ctlpane, 5, 18, str, MOUSE_EVENT_NONE);
-#endif
-        }
+        // network section
+        render_text(&ctlpane, 8.0, 0, "-- NETWORK --", MOUSE_EVENT_NONE);
     }
 
     // --------------------------------
@@ -1461,67 +1305,34 @@ void display_handler(void)
         }
         render_text(&ctlpane, 5.0, 0, str, MOUSE_EVENT_NONE);
 
-        if (LANDSCAPE()) {
-            // control: stop,play,pause
-            if (m.pb_submode == PB_SUBMODE_STOP) {
-                render_text(&ctlpane, 6.5, 0, "PLAY", MOUSE_EVENT_PLAYBACK_PLAY);
-                render_text(&ctlpane, 6.5, 8, "PAUSE", MOUSE_EVENT_PLAYBACK_PAUSE);
-            } else if (m.pb_submode == PB_SUBMODE_PLAY) {
-                render_text(&ctlpane, 6.5, 0, "STOP", MOUSE_EVENT_PLAYBACK_STOP);
-                render_text(&ctlpane, 6.5, 8, "PAUSE", MOUSE_EVENT_PLAYBACK_PAUSE);
-            } else if (m.pb_submode == PB_SUBMODE_PAUSE) {
-                render_text(&ctlpane, 6.5, 0, "STOP", MOUSE_EVENT_PLAYBACK_STOP);
-                render_text(&ctlpane, 6.5, 8, "PLAY", MOUSE_EVENT_PLAYBACK_PLAY);
-            } else {
-                render_text(&ctlpane, 6.5, 0, "????", MOUSE_EVENT_NONE);
-                render_text(&ctlpane, 6.5, 8, "????", MOUSE_EVENT_NONE);
-            }
-
-            // control: fwd,rev
-            render_text(&ctlpane, 8.0, 0, "REV", MOUSE_EVENT_PLAYBACK_REVERSE);
-            render_text(&ctlpane, 8.0, 8, "FWD", MOUSE_EVENT_PLAYBACK_FORWARD);
-
-            // control: fast,slow
-            render_text(&ctlpane, 9.5, 0, "SLOWER", MOUSE_EVENT_PLAYBACK_SLOWER);
-            render_text(&ctlpane, 9.5, 8, "FASTER", MOUSE_EVENT_PLAYBACK_FASTER);
-
-            // control: hour-, hour+,min-,min+
-            render_text(&ctlpane, 11.0, 0, "HOUR-", MOUSE_EVENT_PLAYBACK_HOUR_MINUS);
-            render_text(&ctlpane, 11.0, 8, "HOUR+", MOUSE_EVENT_PLAYBACK_HOUR_PLUS);
-            render_text(&ctlpane, 12.5, 0, "MIN-",  MOUSE_EVENT_PLAYBACK_MINUTE_MINUS);
-            render_text(&ctlpane, 12.5, 8, "MIN+",  MOUSE_EVENT_PLAYBACK_MINUTE_PLUS);
+        // control: stop,play,pause
+        if (m.pb_submode == PB_SUBMODE_STOP) {
+            render_text(&ctlpane, 6.5, 0, "PLAY", MOUSE_EVENT_PLAYBACK_PLAY);
+            render_text(&ctlpane, 6.5, 8, "PAUSE", MOUSE_EVENT_PLAYBACK_PAUSE);
+        } else if (m.pb_submode == PB_SUBMODE_PLAY) {
+            render_text(&ctlpane, 6.5, 0, "STOP", MOUSE_EVENT_PLAYBACK_STOP);
+            render_text(&ctlpane, 6.5, 8, "PAUSE", MOUSE_EVENT_PLAYBACK_PAUSE);
+        } else if (m.pb_submode == PB_SUBMODE_PAUSE) {
+            render_text(&ctlpane, 6.5, 0, "STOP", MOUSE_EVENT_PLAYBACK_STOP);
+            render_text(&ctlpane, 6.5, 8, "PLAY", MOUSE_EVENT_PLAYBACK_PLAY);
         } else {
-            // PORTRAIT ...
-            //
-            // control: stop,play,pause
-            if (m.pb_submode == PB_SUBMODE_STOP) {
-                render_text(&ctlpane, 0, 16, "PLAY", MOUSE_EVENT_PLAYBACK_PLAY);
-                render_text(&ctlpane, 0, 29, "PAUSE", MOUSE_EVENT_PLAYBACK_PAUSE);
-            } else if (m.pb_submode == PB_SUBMODE_PLAY) {
-                render_text(&ctlpane, 0, 16, "STOP", MOUSE_EVENT_PLAYBACK_STOP);
-                render_text(&ctlpane, 0, 29, "PAUSE", MOUSE_EVENT_PLAYBACK_PAUSE);
-            } else if (m.pb_submode == PB_SUBMODE_PAUSE) {
-                render_text(&ctlpane, 0, 16, "STOP", MOUSE_EVENT_PLAYBACK_STOP);
-                render_text(&ctlpane, 0, 29, "PLAY", MOUSE_EVENT_PLAYBACK_PLAY);
-            } else {
-                render_text(&ctlpane, 0, 16, "????", MOUSE_EVENT_NONE);
-                render_text(&ctlpane, 0, 29, "????", MOUSE_EVENT_NONE);
-            }
-
-            // control: fwd,rev
-            render_text(&ctlpane, 2, 16, "REV", MOUSE_EVENT_PLAYBACK_REVERSE);
-            render_text(&ctlpane, 2, 29, "FWD", MOUSE_EVENT_PLAYBACK_FORWARD);
-
-            // control: fast,slow
-            render_text(&ctlpane, 4, 16, "SLOWER", MOUSE_EVENT_PLAYBACK_SLOWER);
-            render_text(&ctlpane, 4, 29, "FASTER", MOUSE_EVENT_PLAYBACK_FASTER);
-
-            // control: hour-, hour+,min-,min+
-            render_text(&ctlpane, 6, 12, "MIN-", MOUSE_EVENT_PLAYBACK_MINUTE_MINUS);
-            render_text(&ctlpane, 6, 19, "MIN+", MOUSE_EVENT_PLAYBACK_MINUTE_PLUS);
-            render_text(&ctlpane, 6, 26, "HOUR-", MOUSE_EVENT_PLAYBACK_HOUR_MINUS);
-            render_text(&ctlpane, 6, 34, "HOUR+", MOUSE_EVENT_PLAYBACK_HOUR_PLUS);
+            render_text(&ctlpane, 6.5, 0, "????", MOUSE_EVENT_NONE);
+            render_text(&ctlpane, 6.5, 8, "????", MOUSE_EVENT_NONE);
         }
+
+        // control: fwd,rev
+        render_text(&ctlpane, 8.0, 0, "REV", MOUSE_EVENT_PLAYBACK_REVERSE);
+        render_text(&ctlpane, 8.0, 8, "FWD", MOUSE_EVENT_PLAYBACK_FORWARD);
+
+        // control: fast,slow
+        render_text(&ctlpane, 9.5, 0, "SLOWER", MOUSE_EVENT_PLAYBACK_SLOWER);
+        render_text(&ctlpane, 9.5, 8, "FASTER", MOUSE_EVENT_PLAYBACK_FASTER);
+
+        // control: hour-, hour+,min-,min+
+        render_text(&ctlpane, 11.0, 0, "HOUR-", MOUSE_EVENT_PLAYBACK_HOUR_MINUS);
+        render_text(&ctlpane, 11.0, 8, "HOUR+", MOUSE_EVENT_PLAYBACK_HOUR_PLUS);
+        render_text(&ctlpane, 12.5, 0, "MIN-",  MOUSE_EVENT_PLAYBACK_MINUTE_MINUS);
+        render_text(&ctlpane, 12.5, 8, "MIN+",  MOUSE_EVENT_PLAYBACK_MINUTE_PLUS);
     }
 
     // ---------------------------------------------------------
@@ -1539,22 +1350,13 @@ void display_handler(void)
     // CONFIG  QUIT    
 
     bool okay = false;
-    if (LANDSCAPE()) {
-        if (config_mode) {
-            okay = PANE_ROWS(&ctlpane,0) >= 24;
-        } else if (mode.mode == MODE_LIVE) {
-            okay = PANE_ROWS(&ctlpane,0) >= 12;
-        } else if (mode.mode == MODE_PLAYBACK) {
-            okay = PANE_ROWS(&ctlpane,0) >= 25;
-        }
-    } else {
-        if (config_mode) {
-            okay = PANE_COLS(&ctlpane,0) >= 48;
-        } else if (mode.mode == MODE_LIVE) {
-            okay = PANE_COLS(&ctlpane,0) >= 24;
-        } else if (mode.mode == MODE_PLAYBACK) {
-            okay = PANE_COLS(&ctlpane,0) >= 55;
-        }
+
+    if (config_mode) {
+        okay = PANE_ROWS(&ctlpane,0) >= 24;
+    } else if (mode.mode == MODE_LIVE) {
+        okay = PANE_ROWS(&ctlpane,0) >= 12;
+    } else if (mode.mode == MODE_PLAYBACK) {
+        okay = PANE_ROWS(&ctlpane,0) >= 25;
     }
 
     if (okay) {
@@ -1614,7 +1416,7 @@ void display_handler(void)
             render_text(&ctlbpane, 0, 0, "NETWORK", MOUSE_EVENT_STATUS_SELECT);
             for (i = 0; i < MAX_WEBCAM; i++) {
                 if (webcam[i].state == STATE_CONNECTED) {
-                    sprintf(str, "%c", 'A'+i);  // xxx later
+                    sprintf(str, "%c", 'A'+i);  // XXX later
                 } else {
                     sprintf(str, "%c not conn", 'A'+i);
                 }
@@ -1744,6 +1546,26 @@ void render_text_ex(SDL_Rect * pane, double row, double col, char * str, int mou
 
 // -----------------  WEBCAM THREAD  -------------------------------------
 
+// XXX move this, and prototype
+void get_wc_info(int id, char *name, char *ipaddr, int *port)
+{
+    int selected;
+    char *wc_def_str;
+
+    selected = CONFIG_WC_SELECT(id)[0] - '0';
+
+    if (selected < 0 || selected > 3) {
+        strcpy(name, "<none>");
+        strcpy(ipaddr, "");
+        *port = 0;
+    } else {
+        wc_def_str = CONFIG_WC_DEFINE(selected);
+        sscanf(wc_def_str, "%s %s %d\n", name, ipaddr, port);
+    }
+
+    INFO("id=%d : selected=%d  name=%s ipaddr=%s port=%d\n", id, selected, name, ipaddr, *port);
+}
+
 void * webcam_thread(void * cx) 
 {
     #define STATE_CHANGE(new_state, s1, s2, s3) \
@@ -1815,27 +1637,23 @@ void * webcam_thread(void * cx)
         } while (0)
 
     #define OK_TO_CONNECT \
-        (strcmp(CONFIG_WC_NAME(id), NO_WCNAME) != 0 && \
-         strcmp(CONFIG_USERNAME, NO_USERNAME) != 0 && \
-         strcmp(CONFIG_PASSWORD, NO_PASSWORD) != 0)
+        (strcmp(wc->name, "<none>") != 0)
 
     #define DISCONNECT() \
         do { \
-            if (handle != INVALID_HANDLE) { \
+            if (handle != NULL) { \
                 net_disconnect(handle); \
-                handle = INVALID_HANDLE; \
+                handle = NULL; \
                 bzero(&wc->status, sizeof(wc->status)); \
                 wc->recvd_bytes = 0; \
                 wc->recvd_frames = 0; \
             } \
         } while (0)
 
-    #define INVALID_HANDLE (-1)
-
     int              id      = (int)(long)cx;
     char             id_char = 'A' + id;
     webcam_t       * wc      = &webcam[id];
-    int              handle  = INVALID_HANDLE;
+    void           * handle  = NULL;
 
     uint64_t         last_state_change_time_us = microsec_timer();
     uint64_t         last_status_msg_recv_time_us = microsec_timer();
@@ -1848,7 +1666,8 @@ void * webcam_thread(void * cx)
     // init non-zero fields of wc
     pthread_mutex_init(&wc->image_mutex,NULL);
     wc->state = STATE_NOT_CONNECTED;
-    DISPLAY_WC_NAME(CONFIG_WC_NAME(id));
+    get_wc_info(id, wc->name, wc->ipaddr, &wc->port);
+    DISPLAY_WC_NAME(wc->name);
 
     // acknowledge that this thread has completed initialization
     __sync_fetch_and_add(&webcam_threads_running_count,1);
@@ -1866,14 +1685,15 @@ void * webcam_thread(void * cx)
             break;
 
         case STATE_CONNECTING: {
-            int h, connect_status;
+            int connect_status;
+            void *h;
 
             // display connecting message
             DISPLAY_TEXT("CONNECTING", "", "");
 
             // attempt to connect to wc_name
-            h = net_connect(CONFIG_PASSWORD, wc->image_name, &connect_status);
-            if (h < 0) {  
+            h = net_connect(wc->ipaddr, wc->port, "XXX-password", &connect_status);
+            if (h == NULL) {  
                 STATE_CHANGE(STATE_CONNECTING_ERROR, "CONNECT ERROR", status2str(connect_status), "");
                 break;
             }
@@ -1932,8 +1752,8 @@ void * webcam_thread(void * cx)
                            PB_SUBMODE_STR(wc->mode.pb_submode),
                            PB_DIR_STR(wc->mode.pb_dir),
                            wc->mode.pb_speed,
-                           time2str(ts1,wc->mode.pb_mode_entry_real_time_us/1000000,CONFIG_LOCALTIME=='N'),
-                           time2str(ts2,wc->mode.pb_real_time_us/1000000,CONFIG_LOCALTIME=='N'));
+                           time2str(ts1,wc->mode.pb_mode_entry_real_time_us/1000000,false),
+                           time2str(ts2,wc->mode.pb_real_time_us/1000000,false));
                 }
 #endif
 
@@ -2019,14 +1839,19 @@ void * webcam_thread(void * cx)
             }
 
             // receive msg header  
-            // XXX maybe this can wait
-            if ((ret = net_recv(handle, &msg, sizeof(msg))) != sizeof(msg)) {
-                if (ret == -1) {
-                    STATE_CHANGE(STATE_CONNECTED_ERROR, "ERROR", "recv msg hdr", "");
-                }
+            ret = net_recv(handle, &msg, sizeof(msg), true);
+            if (ret == -1) {
+                // error
+                STATE_CHANGE(STATE_CONNECTED_ERROR, "ERROR", "recv msg hdr", "");
+                usleep(MS);
+                break;
+            } else if (ret == 0) {
+                // msg_header not available
                 usleep(MS);
                 break;
             }
+
+            // the msg hdr has been received, keep track of stat for number of bytes recvd
             wc->recvd_bytes += ret;
 
             // process the msg
@@ -2042,7 +1867,8 @@ void * webcam_thread(void * cx)
 
                 // receive msg data  
                 if (data_len > 0) {
-                    if ((ret = net_recv(handle, data, data_len)) != data_len) {
+                    ret = net_recv(handle, data, data_len, false);
+                    if (ret < 0) {
                         STATE_CHANGE(STATE_CONNECTED_ERROR, "ERROR", "recv msg data", "");
                         break;
                     }
