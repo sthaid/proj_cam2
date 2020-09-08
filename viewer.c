@@ -1,5 +1,8 @@
 // XXX use fixed size display on linux, and lock to landscape mode on phone
 // XXX need to handle change name
+// XXX add password support
+// XXX cleanup
+// XXX need a way to enter the config defs
 
 #include "wc.h"
 #include "button_sound.h"
@@ -26,10 +29,37 @@
 #define HIGHLIGHT_TIME_US           (2000*MS)
 #define RECONNECT_TIME_US           (10000*MS)
 
-#define CONFIG_WC_DEFINE(idx)       (config[(idx)].value)
-#define CONFIG_WC_SELECT(idx)       (config[10+(idx)].value)
+#define CONFIG_WC_DEF(def_idx)      (config[(def_idx)].value)
+#define CONFIG_WC_SELECT(sel_idx)   (config[10+(sel_idx)].value)
 #define CONFIG_ZOOM                 (config[14].value[0])    // A, B, C, D, N
 #define CONFIG_DEBUG                (config[15].value[0])    // N, Y
+
+// XXX use FATAL if def_idx is out of range;
+//     and is the range 8 or 10
+// XXX other FATAL, when sscanf doesn't succeed
+#define CONFIG_WC_DEF_NAME(def_idx, def_name) \
+            do { \
+                (def_name)[0] = '\0'; \
+                if ((def_idx) >= 0 && (def_idx) <= 9) { \
+                    sscanf(CONFIG_WC_DEF(def_idx), "%s", (def_name)); \
+                } \
+            } while (0)
+#define CONFIG_WC_DEF_IPADDR(def_idx, def_ipaddr) \
+            do { \
+                char discard_str[100]; \
+                (def_ipaddr)[0] = '\0'; \
+                if ((def_idx) >= 0 && (def_idx) <= 9) { \
+                    sscanf(CONFIG_WC_DEF(def_idx), "%s %s", discard_str, (def_ipaddr)); \
+                } \
+            } while (0)
+#define CONFIG_WC_DEF_PORT(def_idx, def_port) \
+            do { \
+                char discard_str[100]; \
+                (def_port) = 0; \
+                if ((def_idx) >= 0 && (def_idx) <= 9) { \
+                    sscanf(CONFIG_WC_DEF(def_idx), "%s %s %d", discard_str, discard_str, &(def_port)); \
+                } \
+            } while (0)
 
 #ifndef ANDROID 
 #define SDL_FLAGS                   SDL_WINDOW_RESIZABLE
@@ -244,6 +274,8 @@ typedef struct {
     int             texture_h;
 
     bool            change_resolution_request;
+    int             change_name_request;
+    bool            name_select_mode;
 
     pthread_mutex_t image_mutex;
     uint64_t        image_change;
@@ -305,22 +337,21 @@ webcam_t         webcam[MAX_WEBCAM];
 event_t          event;
 
 char             config_path[MAX_STR];
-const int        config_version = 2;
-//XXX need a way to enter the defs
-config_t         config[] = { { "wc_define_0",  "test0 192.168.1.121 9990" },
+const int        config_version = 21;
+config_t         config[] = { { "wc_define_0",  "<none>" },
                               { "wc_define_1",  "test1 73.114.235.71 9991" },
-                              { "wc_define_2",  "" },
-                              { "wc_define_3",  "" },
-                              { "wc_define_4",  "" },
-                              { "wc_define_5",  "" },
-                              { "wc_define_6",  "" },
-                              { "wc_define_7",  "" },
-                              { "wc_define_8",  "" },
-                              { "wc_define_9",  "" },
-                              { "wc_select_A", "0"        },
-                              { "wc_select_B", "1"     },
-                              { "wc_select_C", ""     },
-                              { "wc_select_D", ""     },
+                              { "wc_define_2",  "test2 192.168.1.121 9990" },
+                              { "wc_define_3",  "<none>" },
+                              { "wc_define_4",  "<none>" },
+                              { "wc_define_5",  "<none>" },
+                              { "wc_define_6",  "<none>" },
+                              { "wc_define_7",  "<none>" },
+                              { "wc_define_8",  "<none>" },
+                              { "wc_define_9",  "<none>" },
+                              { "wc_select_A", "1"        },
+                              { "wc_select_B", "2"     },
+                              { "wc_select_C", "0"     },
+                              { "wc_select_D", "0"     },
                               { "zoom",      "N",          },
                               { "debug",     "Y"           },
                               { "",          ""            } };
@@ -377,7 +408,7 @@ int main(int argc, char **argv)
         FATAL("android internal storage path not set\n");
     }
 #endif
-    sprintf(config_path, "%s/.viewer_config", config_dir);
+    sprintf(config_path, "%s/.viewer2_config", config_dir);
     if (config_read(config_path, config, config_version) < 0) {
         FATAL("config_read failed for %s\n", config_path);
     }
@@ -398,7 +429,6 @@ int main(int argc, char **argv)
     // call is made to check if ntp is synced; and if it is not synced then to determine
     // a time offset which is incorporated in the time returned by calls to 
     // get_real_time_us and get_real_time_sec
-//AAA
     // XXX should call ntp_synced here
     // XXX ntp_init();
     // XXX still support the tablet
@@ -874,10 +904,22 @@ void display_handler(void)
             CONFIG_ZOOM = (CONFIG_ZOOM == ('A'+idx) ? 'N' : ('A'+idx));
             CONFIG_WRITE();
 
+        } else if (event.mouse_event >= MOUSE_EVENT_WC_NAME &&
+                   event.mouse_event < MOUSE_EVENT_WC_NAME+4) {
+            int idx = event.mouse_event - MOUSE_EVENT_WC_NAME;
+            webcam[idx].name_select_mode = !webcam[idx].name_select_mode;
+
         } else if (event.mouse_event >= MOUSE_EVENT_WC_RES && 
                    event.mouse_event < MOUSE_EVENT_WC_RES+4) {
             int idx = event.mouse_event - MOUSE_EVENT_WC_RES;
             webcam[idx].change_resolution_request = true;
+
+        } else if (event.mouse_event >= MOUSE_EVENT_WC_NAME_LIST &&
+                   event.mouse_event < MOUSE_EVENT_WC_NAME_LIST+32) {
+            int idx = (event.mouse_event - MOUSE_EVENT_WC_NAME_LIST) / 8;
+            int name_idx = (event.mouse_event - MOUSE_EVENT_WC_NAME_LIST) % 8;
+            webcam[idx].change_name_request = name_idx;
+            webcam[idx].name_select_mode = false;
 
         } else {
             ERROR("invalid mouse_event %d\n", event.mouse_event);
@@ -1135,11 +1177,16 @@ void display_handler(void)
             pthread_mutex_lock(&wc->image_mutex);
 
             // display border 
-            SDL_SetRenderDrawColor(renderer, 255, 255, 255, SDL_ALPHA_OPAQUE);
+            if (wc->image_highlight && !wc->name_select_mode) {
+                SDL_SetRenderDrawColor(renderer, 255, 255, 255, SDL_ALPHA_OPAQUE);
+            } else {
+                SDL_SetRenderDrawColor(renderer, 0, 0, 255, SDL_ALPHA_OPAQUE);
+            }
             SDL_RenderDrawRect(renderer, &wcpane[i]);
-            SDL_RenderDrawLine(renderer, 
+            SDL_RenderDrawLine(renderer,
                                wcpane[i].x, wcpane[i].y+font[0].char_height+1,
                                wcpane[i].x+wcpane[i].w-1, wcpane[i].y+font[0].char_height+1);
+
 
             // display text line
             if (PANE_COLS(&wctitlepane[i],0) >= 1) {
@@ -1171,8 +1218,27 @@ void display_handler(void)
                             0);
             }
 
+            // display webcam_names
+            if (wc->name_select_mode) {
+                // display the list of available webcam names to choose from
+                bool wc_name_none_has_been_rendered = false;
+                char wc_name[100];
+                for (j = 0; j < 8; j++) {  // XXX use a define, and use 10 not 8
+                    CONFIG_WC_DEF_NAME(j, wc_name);
+                    if (strcmp(wc_name, "<none>") == 0) {
+                        if (wc_name_none_has_been_rendered) continue;
+                        wc_name_none_has_been_rendered = true;
+                    }
+                    render_text(&wcimagepane[i], 0.5+1.5*j, 0,
+                                wc_name,
+                                MOUSE_EVENT_WC_NAME_LIST + 8 * i + j);
+                }
+
+                // register for the zoom event
+                event.mouse_event_pos[MOUSE_EVENT_WC_ZOOM+i] = wcimagepane[i];
+
             // display the image
-            if (wc->image_display) {
+            } else if (wc->image_display) {
                 // create new texture, if needed
                 if (wc->texture == NULL || 
                     wc->texture_w != wc->image_w || 
@@ -1546,26 +1612,6 @@ void render_text_ex(SDL_Rect * pane, double row, double col, char * str, int mou
 
 // -----------------  WEBCAM THREAD  -------------------------------------
 
-// XXX move this, and prototype
-void get_wc_info(int id, char *name, char *ipaddr, int *port)
-{
-    int selected;
-    char *wc_def_str;
-
-    selected = CONFIG_WC_SELECT(id)[0] - '0';
-
-    if (selected < 0 || selected > 3) {
-        strcpy(name, "<none>");
-        strcpy(ipaddr, "");
-        *port = 0;
-    } else {
-        wc_def_str = CONFIG_WC_DEFINE(selected);
-        sscanf(wc_def_str, "%s %s %d\n", name, ipaddr, port);
-    }
-
-    INFO("id=%d : selected=%d  name=%s ipaddr=%s port=%d\n", id, selected, name, ipaddr, *port);
-}
-
 void * webcam_thread(void * cx) 
 {
     #define STATE_CHANGE(new_state, s1, s2, s3) \
@@ -1666,7 +1712,12 @@ void * webcam_thread(void * cx)
     // init non-zero fields of wc
     pthread_mutex_init(&wc->image_mutex,NULL);
     wc->state = STATE_NOT_CONNECTED;
-    get_wc_info(id, wc->name, wc->ipaddr, &wc->port);
+    wc->change_name_request = -1;
+    CONFIG_WC_DEF_NAME(CONFIG_WC_SELECT(id)[0]-'0', wc->name);
+    CONFIG_WC_DEF_IPADDR(CONFIG_WC_SELECT(id)[0]-'0', wc->ipaddr);
+    CONFIG_WC_DEF_PORT(CONFIG_WC_SELECT(id)[0]-'0', wc->port);
+
+    // xxx comment
     DISPLAY_WC_NAME(wc->name);
 
     // acknowledge that this thread has completed initialization
@@ -1674,6 +1725,27 @@ void * webcam_thread(void * cx)
 
     // runtime
     while (true) {
+        // handle change_name_request
+        if (wc->change_name_request != -1) {
+            char select_value_str[30];
+
+            // XXX FATAL if change_name_request is invalid
+
+            DISCONNECT();
+            STATE_CHANGE(STATE_NOT_CONNECTED, "", "", "");
+
+            sprintf(select_value_str, "%d", wc->change_name_request);
+            strcpy(CONFIG_WC_SELECT(id), select_value_str);
+            CONFIG_WRITE();
+            wc->change_name_request = -1;
+
+            CONFIG_WC_DEF_NAME(CONFIG_WC_SELECT(id)[0]-'0', wc->name);
+            CONFIG_WC_DEF_IPADDR(CONFIG_WC_SELECT(id)[0]-'0', wc->ipaddr);
+            CONFIG_WC_DEF_PORT(CONFIG_WC_SELECT(id)[0]-'0', wc->port);
+
+            DISPLAY_WC_NAME(wc->name);
+        }
+
         // state processing
         switch (wc->state) {
         case STATE_NOT_CONNECTED:
@@ -1692,7 +1764,7 @@ void * webcam_thread(void * cx)
             DISPLAY_TEXT("CONNECTING", "", "");
 
             // attempt to connect to wc_name
-            h = net_connect(wc->ipaddr, wc->port, "XXX-password", &connect_status);
+            h = net_connect(wc->ipaddr, wc->port, "XXX-password-TBD", &connect_status);
             if (h == NULL) {  
                 STATE_CHANGE(STATE_CONNECTING_ERROR, "CONNECT ERROR", status2str(connect_status), "");
                 break;
