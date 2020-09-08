@@ -6,6 +6,9 @@
 
 #define TIMEOUT_US 10000000   // 10 secs
 
+#define MAGIC_PASSWORD_OKAY      0x55aa55aa
+#define MAGIC_PASSWORD_NOTOKAY   0x0badbeaf
+
 //
 // typedefs
 //
@@ -77,28 +80,30 @@ int net_init(bool is_server, int server_port)
 
 void *net_connect(char *ipaddr, int port, char *password, int *connect_status)
 {
-    int                rc, sd;
+    int                rc, sd = -1;
+    net_con_t         *net_con = NULL;
     struct sockaddr_in sin;
-    net_con_t         *net_con;
     char               str[100];
 
-    // XXX tbd
-    *connect_status = STATUS_INFO_OK;
+    // xxx comment, and set in other paths
+    *connect_status = STATUS_ERR_GENERAL_FAILURE;
 
-    // connect to the server 
-    rc = getsockaddr(ipaddr, port, SOCK_STREAM, IPPROTO_TCP, &sin);
-    if (rc != 0) {
-        ERROR("getsockaddr failed for %s, %s\n", ipaddr, strerror(errno));
-        return NULL;
-    }
+    // create socket
     sd = socket(AF_INET, SOCK_STREAM, 0);
     if (sd == -1) {
         FATAL("failed to create socket, %s\n",strerror(errno));
     }
+
+    // connect to the server 
+    rc = getsockaddr(ipaddr, port, SOCK_STREAM, IPPROTO_TCP, &sin);
+    if (rc != 0) {
+        ERROR("getsockaddr %s:%d failed, %s\n", ipaddr, port, strerror(errno));
+        goto error_ret;
+    }
     rc = connect(sd, (struct sockaddr *)&sin, sizeof(sin));
     if (rc < 0) {
-        ERROR("connect to %s:%d failed, %s\n", ipaddr, port, strerror(errno));
-        return NULL;
+        ERROR("connect %s:%d failed, %s\n", ipaddr, port, strerror(errno));
+        goto error_ret;
     }
 
     // allocate the net_con_t, and 
@@ -106,23 +111,54 @@ void *net_connect(char *ipaddr, int port, char *password, int *connect_status)
     net_con = calloc(1, sizeof(net_con_t));
     net_con->sd = sd;
     set_sockopts(net_con);
-    INFO("sd=%d opts=%s\n", sd, sprintf_sockopts(sd, str, sizeof(str)));
+    INFO("sd=%d opts=%s\n", sd, sprintf_sockopts(sd, str, sizeof(str))); //xxx check this and change to DEBUG
 
     // send the password, and
     // wait for ack that the password was okay
-    // XXX later
+    char password_buff[128];
+    int status_buff = 0;
+    memset(password_buff, 0, sizeof(password_buff));
+    strcpy(password_buff, password);
+    if (net_send(net_con, password_buff, sizeof(password_buff)) < 0) {
+        ERROR("send password check %s:%d failed, %s\n", ipaddr, port, strerror(errno));
+        goto error_ret;
+    }
+    if (net_recv(net_con, &status_buff, sizeof(status_buff), false) < 0) {
+        ERROR("recv password status %s:%d failed, %s\n", ipaddr, port, strerror(errno));
+        goto error_ret;
+    }
+    if (status_buff != MAGIC_PASSWORD_OKAY) {
+        ERROR("recv password status %s:%d password is invalid\n", ipaddr, port);
+        *connect_status = STATUS_INFO_GAP; //xxx
+        goto error_ret;
+    }
 
     // return the handle (net_con)
+    *connect_status = STATUS_INFO_OK;
     return net_con;
+
+    // error return path
+error_ret:
+    if (net_con != NULL) {
+        net_disconnect(net_con);
+    } else if (sd != -1) {
+        close(sd);
+    }
+    return NULL;
 }
 
 void *net_accept(void)
 {
     struct sockaddr_in addr;
     socklen_t          addrlen;
-    int                sd;
-    char               str[100];
-    net_con_t        * net_con;
+    int                sd = -1, len;
+    char               from_str[100];
+    char               opts_str[100];
+    net_con_t        * net_con = NULL;
+    FILE             * password_fp = NULL;
+    char               password_rcvd[128];
+    char               password_expected[128];
+    int                password_status_ret;
 
     // if listen_sd is invalid then fatal error
     if (listen_sd == -1) {
@@ -135,22 +171,57 @@ void *net_accept(void)
     if (sd == -1) {
         FATAL("accept, %s\n", strerror(errno));
     }
-    INFO("accepted connection from %s\n",
-         sock_addr_to_str(str, sizeof(str), (struct sockaddr*)&addr));
+    sock_addr_to_str(from_str, sizeof(from_str), (struct sockaddr*)&addr);
+    INFO("accepted connection from %s\n", from_str);
 
     // allocate the net_con_t, and 
     // set snd and rcv timeouts
     net_con = calloc(1, sizeof(net_con_t));
     net_con->sd = sd;
     set_sockopts(net_con);
-    INFO("sd=%d opts=%s\n", sd, sprintf_sockopts(sd, str, sizeof(str)));
+    INFO("sd=%d opts=%s\n", sd, sprintf_sockopts(sd, opts_str, sizeof(opts_str)));
+
+    // read expected password from file
+    password_fp = fopen("./password", "r");
+    if (password_fp == NULL) {
+        ERROR("failed to open password file, %s\n", strerror(errno));
+        goto error_ret;
+    }
+    fgets(password_expected, sizeof(password_expected), password_fp);
+    len = strlen(password_expected);
+    if (len > 0 && password_expected[len-1] == '\n') {
+        password_expected[len-1] = '\0';
+    }
+    fclose(password_fp);
+    password_fp = NULL;
 
     // recv the password, and validate;
     // send ack/nak
-    // XXX
+    if (net_recv(net_con, &password_rcvd, sizeof(password_rcvd), false) < 0) {
+        ERROR("recv password %s failed, %s\n", from_str, strerror(errno));
+        goto error_ret;
+    }
+    password_status_ret = (strcmp(password_rcvd, password_expected) == 0
+                           ? MAGIC_PASSWORD_OKAY : MAGIC_PASSWORD_NOTOKAY);
+    if (net_send(net_con, &password_status_ret, sizeof(password_status_ret)) < 0) {
+        ERROR("send password status %s failed, %s\n", from_str, strerror(errno));
+        goto error_ret;
+    }
 
     // return the handle
     return net_con;
+
+    // error return path
+error_ret:
+    if (net_con != NULL) {
+        net_disconnect(net_con);
+    } else if (sd != -1) {
+        close(sd);
+    }
+    if (password_fp) {
+        fclose(password_fp);
+    }
+    return NULL;
 }
 
 void net_disconnect(void *handle)
@@ -316,7 +387,10 @@ int net_recv(void *handle, void *buff, int len, bool non_blocking)
     // do the recv
     start_us = microsec_timer();
     while (len_remaining) {
+        INFO("calling recv\n"); // XXX
+        errno = 0;
         ret = recv(net_con->sd, buff, len_remaining, MSG_WAITALL);
+        INFO("recv len=%d  ret %d  errno=%d\n", len_remaining, ret, errno); // XXX
         if (ret <= 0) {
             if (ret == 0) errno = ENODATA;
             return -1;

@@ -1,13 +1,16 @@
 #!/bin/bash
 
-if [ $# -eq 0 ]
-then
+if [ $# -eq 0 ]; then
   echo hostname list expected
   exit
 fi
 
-for host in $*
-do
+read -p "password (secret): " password
+if [ "$password" = "" ]; then
+  password=secret
+fi
+
+for host in $*; do
     echo
     echo "----------- INSTALL_RASPBERRY_PI $host  ----------"
 
@@ -22,6 +25,10 @@ do
     scp -p \
       wc_main.c wc_webcam.c net.c util.c jpeg_decode.c temper.c wc.h Makefile \
       pi@$host:proj_cam2
+
+    echo
+    echo CREATE PASSWORD FILE ON $host
+    echo $password | ssh pi@$host cat \> proj_cam2/password
 
     echo
     echo KILLALL WC_SERVER 

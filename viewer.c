@@ -60,6 +60,15 @@
                     sscanf(CONFIG_WC_DEF(def_idx), "%s %s %d", discard_str, discard_str, &(def_port)); \
                 } \
             } while (0)
+#define CONFIG_WC_DEF_PASSWORD(def_idx, def_password) \
+            do { \
+                char discard_str[100]; \
+                int discard_int; \
+                (def_password)[0] = '\0'; \
+                if ((def_idx) >= 0 && (def_idx) <= 9) { \
+                    sscanf(CONFIG_WC_DEF(def_idx), "%s %s %d %s", discard_str, discard_str, &discard_int, (def_password)); \
+                } \
+            } while (0)
 
 #ifndef ANDROID 
 #define SDL_FLAGS                   SDL_WINDOW_RESIZABLE
@@ -261,6 +270,7 @@ typedef struct {
     char            name[100];
     char            ipaddr[100];
     int             port;
+    char            password[100];
 
     uint32_t        state;
     struct mode_s   mode;
@@ -339,8 +349,8 @@ event_t          event;
 char             config_path[MAX_STR];
 const int        config_version = 21;
 config_t         config[] = { { "wc_define_0",  "<none>" },
-                              { "wc_define_1",  "test1 73.114.235.71 9991" },
-                              { "wc_define_2",  "test2 192.168.1.121 9990" },
+                              { "wc_define_1",  "test1 73.114.235.71 9991 secret" },
+                              { "wc_define_2",  "test2 192.168.1.121 9990 secret" },
                               { "wc_define_3",  "<none>" },
                               { "wc_define_4",  "<none>" },
                               { "wc_define_5",  "<none>" },
@@ -1712,10 +1722,7 @@ void * webcam_thread(void * cx)
     // init non-zero fields of wc
     pthread_mutex_init(&wc->image_mutex,NULL);
     wc->state = STATE_NOT_CONNECTED;
-    wc->change_name_request = -1;
-    CONFIG_WC_DEF_NAME(CONFIG_WC_SELECT(id)[0]-'0', wc->name);
-    CONFIG_WC_DEF_IPADDR(CONFIG_WC_SELECT(id)[0]-'0', wc->ipaddr);
-    CONFIG_WC_DEF_PORT(CONFIG_WC_SELECT(id)[0]-'0', wc->port);
+    wc->change_name_request = CONFIG_WC_SELECT(id)[0]-'0';
 
     // xxx comment
     DISPLAY_WC_NAME(wc->name);
@@ -1739,9 +1746,10 @@ void * webcam_thread(void * cx)
             CONFIG_WRITE();
             wc->change_name_request = -1;
 
-            CONFIG_WC_DEF_NAME(CONFIG_WC_SELECT(id)[0]-'0', wc->name);
-            CONFIG_WC_DEF_IPADDR(CONFIG_WC_SELECT(id)[0]-'0', wc->ipaddr);
-            CONFIG_WC_DEF_PORT(CONFIG_WC_SELECT(id)[0]-'0', wc->port);
+            CONFIG_WC_DEF_NAME    (CONFIG_WC_SELECT(id)[0]-'0', wc->name);
+            CONFIG_WC_DEF_IPADDR  (CONFIG_WC_SELECT(id)[0]-'0', wc->ipaddr);
+            CONFIG_WC_DEF_PORT    (CONFIG_WC_SELECT(id)[0]-'0', wc->port);
+            CONFIG_WC_DEF_PASSWORD(CONFIG_WC_SELECT(id)[0]-'0', wc->password);
 
             DISPLAY_WC_NAME(wc->name);
         }
@@ -1764,7 +1772,7 @@ void * webcam_thread(void * cx)
             DISPLAY_TEXT("CONNECTING", "", "");
 
             // attempt to connect to wc_name
-            h = net_connect(wc->ipaddr, wc->port, "XXX-password-TBD", &connect_status);
+            h = net_connect(wc->ipaddr, wc->port, wc->password, &connect_status);
             if (h == NULL) {  
                 STATE_CHANGE(STATE_CONNECTING_ERROR, "CONNECT ERROR", status2str(connect_status), "");
                 break;
