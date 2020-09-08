@@ -45,7 +45,7 @@ int config_read(char * config_path, config_t * config, int config_version)
             value++;
         }
 
-        // xxx del
+        // XXX del
         INFO("name='%s' value='%s'\n", name, value);
 
         // search the config array for a matching name;
@@ -86,6 +86,63 @@ int config_write(char * config_path, config_t * config, int config_version)
     // close
     fclose(fp);
     return 0;
+}
+
+// -----------------  NETWORKING  ----------------------------------------
+
+int getsockaddr(char * node, int port, int socktype, int protocol, struct sockaddr_in * ret_addr)
+{
+    struct addrinfo   hints;
+    struct addrinfo * result;
+    char              port_str[20];
+    int               ret;
+
+    sprintf(port_str, "%d", port);
+
+    bzero(&hints, sizeof(hints));
+    hints.ai_family   = AF_INET;
+    hints.ai_socktype = socktype;
+    hints.ai_protocol = protocol;
+    hints.ai_flags    = AI_NUMERICSERV;
+
+    ret = getaddrinfo(node, port_str, &hints, &result);
+    if (ret != 0) {
+        ERROR("failed to get address of %s, %s\n", node, gai_strerror(ret));
+        return -1;
+    }
+    if (result->ai_addrlen != sizeof(*ret_addr)) {
+        ERROR("getaddrinfo result addrlen=%d, expected=%d\n",
+            (int)result->ai_addrlen, (int)sizeof(*ret_addr));
+        return -1;
+    }
+
+    *ret_addr = *(struct sockaddr_in*)result->ai_addr;
+    freeaddrinfo(result);
+    return 0;
+}
+
+char *sock_addr_to_str(char * s, int slen, struct sockaddr * addr)
+{
+    char addr_str[100];
+    int port;
+
+    if (addr->sa_family == AF_INET) {
+        inet_ntop(AF_INET,
+                  &((struct sockaddr_in*)addr)->sin_addr,
+                  addr_str, sizeof(addr_str));
+        port = ((struct sockaddr_in*)addr)->sin_port;
+    } else if (addr->sa_family == AF_INET6) {
+        inet_ntop(AF_INET6,
+                  &((struct sockaddr_in6*)addr)->sin6_addr,
+                 addr_str, sizeof(addr_str));
+        port = ((struct sockaddr_in6*)addr)->sin6_port;
+    } else {
+        snprintf(s,slen,"Invalid AddrFamily %d", addr->sa_family);
+        return s;
+    }
+
+    snprintf(s,slen,"%s:%d",addr_str,htons(port));
+    return s;
 }
 
 // -----------------  LOGGING & PRINTMSG  ---------------------------------
@@ -343,6 +400,8 @@ void convert_yuy2_to_gs(uint8_t * yuy2, uint8_t * gs, int pixels)
 
 // -----------------  TIME UTILS  -----------------------------------------
 
+static int64_t system_clock_offset_us;
+
 uint64_t microsec_timer(void)
 {
     struct timespec ts;
@@ -363,7 +422,9 @@ uint64_t get_real_time_us(void)
     static uint64_t last_us;
 
     clock_gettime(CLOCK_REALTIME,&ts);
-    us = ((uint64_t)ts.tv_sec * 1000000) + ((uint64_t)ts.tv_nsec / 1000);
+    us = ((uint64_t)ts.tv_sec * 1000000) + 
+         ((uint64_t)ts.tv_nsec / 1000) +
+         system_clock_offset_us;
 
     if (us <= last_us) {
         us = last_us + 1;
@@ -420,7 +481,13 @@ bool ntp_synced(void)
     fp = popen("timedatectl status < /dev/null 2>&1", "re");
     if (fp != NULL) {
         while (fgets(s, sizeof(s), fp) != NULL) {
-            if (strcmp(s, "NTP synchronized: yes\n") == 0) {
+            // check based on Fedora 20
+            if (strstr(s, "NTP synchronized: yes") != NULL) {
+                synced = true;
+                break;
+            }
+            // check based on Fedora 31
+            if (strstr(s, "System clock synchronized: yes") != NULL) {
                 synced = true;
                 break;
             }
@@ -435,6 +502,186 @@ bool ntp_synced(void)
     // return false
     INFO("return notsynced\n");
     return false;
+}
+
+void init_system_clock_offset_using_sntp(void)
+{
+    #define MAX_SERVER_LIST     (sizeof(server_name_list)/sizeof(char*))
+    #define NTP_PORT            123
+    #define VN                  4
+    #define MODE                3
+    #define DIFF_SEC_1900_1970  (2208988800u)
+
+    #define TIMESTAMP_NET_TO_HOST(seconds,fraction) \
+            (((uint64_t)ntohl(seconds) << 32) | ntohl(fraction))
+
+    #define CLOCK_TO_TIMESTAMP_NET(seconds,fraction) \
+            do { \
+                struct timespec    ts; \
+                clock_gettime(CLOCK_REALTIME,&ts); \
+                (seconds) = htonl(ts.tv_sec + DIFF_SEC_1900_1970); \
+                (fraction) = htonl(((uint64_t)ts.tv_nsec << 32) / 1000000000); \
+            } while (0)
+
+    #define CLOCK_TO_TIMESTAMP_HOST() \
+            ( { struct timespec ts; \
+                clock_gettime(CLOCK_REALTIME,&ts); \
+                ts.tv_sec += DIFF_SEC_1900_1970; \
+                ((uint64_t)ts.tv_sec << 32) | (((uint64_t)ts.tv_nsec << 32) / 1000000000); \
+            } )
+
+    static char      * server_name_list[5] = { "pool.ntp.org", 
+                                               "0.pool.ntp.org", 
+                                               "1.pool.ntp.org", 
+                                               "2.pool.ntp.org", 
+                                               "3.pool.ntp.org",
+                                                     };
+
+    uint32_t           request[12];
+    uint32_t           response[12];
+    int                sfd, i, recvlen;
+    struct sockaddr_in local_addr;
+    struct sockaddr_in server_addr;
+    socklen_t          server_addr_len;
+    struct timeval     rcvto;
+    char               s[100];
+    int64_t            sys_clk_off_us = 0;
+
+    // documentation:
+    //  - https://tools.ietf.org/html/rfc4330#section-5
+    //  - RFC 4330    SNTPv4 for IPv4, IPv6 and OSI   January 2006
+
+    // open socket, and bind local address
+    sfd = socket(AF_INET, SOCK_DGRAM|SOCK_CLOEXEC, IPPROTO_UDP);
+    if (sfd == -1) {
+        ERROR("socket, %s\n",strerror(errno));
+        return;
+    }
+    memset(&local_addr, 0, sizeof(local_addr));
+    local_addr.sin_family      = AF_INET;
+    local_addr.sin_port        = htons(0);
+    local_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    if (bind(sfd, (struct sockaddr *)&local_addr, sizeof(local_addr)) < 0) {
+        ERROR("bind, %s\n",strerror(errno));
+        close(sfd);
+        return;
+    }
+
+    // loop over the list of candidate ntp servers
+    // XXX should use an average
+    for (i = 0; i < MAX_SERVER_LIST; i++) {
+        char * server_name = server_name_list[i];
+
+        // get server address
+        if (getsockaddr(server_name, NTP_PORT, SOCK_DGRAM, IPPROTO_UDP, &server_addr) < 0) {
+            ERROR("failed to get address of %s\n", server_name);
+            continue;
+        }
+        DEBUG("address of %s is %s\n", server_name, sock_addr_to_str(s, sizeof(s), (struct sockaddr *)&server_addr));
+
+        // format and send request
+        bzero(request, sizeof(request));
+        request[0] = htonl((VN << 27) | (MODE << 24));
+        CLOCK_TO_TIMESTAMP_NET(request[10],request[11]);   // set Transmit Timestamp
+        if (sendto(sfd, request, sizeof(request), 0, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+            ERROR("sendto, %s\n",strerror(errno));
+            continue;
+        }
+        
+        // wait for response, with 2 sec timeout
+        rcvto.tv_sec  = 2;
+        rcvto.tv_usec = 0;
+        if (setsockopt(sfd, SOL_SOCKET, SO_RCVTIMEO, (char *)&rcvto, sizeof(rcvto)) < 0) {
+            ERROR("setsockopt, %s\n",strerror(errno));
+            continue;
+        }
+        server_addr_len = sizeof(server_addr);
+        recvlen = recvfrom(sfd, response, sizeof(response), 0, (struct sockaddr *)&server_addr, (socklen_t *)&server_addr_len);
+        if (recvlen < 0) {
+            ERROR("recvfrom, %s\n",strerror(errno));
+            continue;
+        }
+
+        // validate response, if not-ok then try next candidate server
+        int64_t transmit_timestamp_request;
+        int64_t originate_timestamp;
+        int64_t receive_timestamp;
+        int64_t transmit_timestamp;
+        int64_t destination_timestamp;
+        int32_t stratum;
+
+        transmit_timestamp_request = TIMESTAMP_NET_TO_HOST(request[10],request[11]);
+        originate_timestamp        = TIMESTAMP_NET_TO_HOST(response[6],response[7]);
+        receive_timestamp          = TIMESTAMP_NET_TO_HOST(response[8],response[9]);
+        transmit_timestamp         = TIMESTAMP_NET_TO_HOST(response[10],response[11]);
+        destination_timestamp      = CLOCK_TO_TIMESTAMP_HOST();
+        stratum                    = (ntohl(response[0]) >> 16) & 0xff;
+
+        if (recvlen != 48 ||
+            stratum == 0 ||
+            originate_timestamp != transmit_timestamp_request)
+        {
+            ERROR("recvlen=%d, stratum=%d, originate_timestamp=%"PRId64" transmit_timestamp_request=%"PRId64"\n",
+                  recvlen, stratum, originate_timestamp, transmit_timestamp_request);
+            continue;
+        }
+
+        // compute round_trip_delay and sys_clk_off_us in microseconds,
+        // the following is taken from the RFC 4330 ...
+        //
+        //   Timestamp Name          ID   When Generated
+        //   ------------------------------------------------------------
+        //   Originate Timestamp     T1   time request sent by client
+        //   Receive Timestamp       T2   time request received by server
+        //   Transmit Timestamp      T3   time reply sent by server
+        //   Destination Timestamp   T4   time reply received by client
+        // 
+        //   The roundtrip delay d and system clock offset t are defined as:
+        //
+        //   d = (T4 - T1) - (T3 - T2)     t = ((T2 - T1) + (T3 - T4)) / 2.
+        int64_t round_trip_delay_us;
+        sys_clk_off_us = ((receive_timestamp - originate_timestamp) + 
+                                  (transmit_timestamp - destination_timestamp)) / 2;
+        sys_clk_off_us = sys_clk_off_us * 1000000 / 0x100000000;
+
+        round_trip_delay_us = (destination_timestamp - originate_timestamp) - 
+                              (transmit_timestamp - receive_timestamp);
+        round_trip_delay_us = round_trip_delay_us * 1000000 / 0x100000000;
+
+        DEBUG("originate_timestamp        = %"PRIu64"\n", originate_timestamp);
+        DEBUG("receive_timestamp          = %"PRIu64"\n", receive_timestamp);
+        DEBUG("transmit_timestamp         = %"PRIu64"\n", transmit_timestamp);
+        DEBUG("destination_timestamp      = %"PRIu64"\n", destination_timestamp);
+        DEBUG("sys_clk_off_us             = %"PRId64"\n", sys_clk_off_us);
+        DEBUG("round_trip_delay_us        = %"PRId64"\n", round_trip_delay_us);
+
+        // if round_trip_delay is too big we won't use this
+        if (round_trip_delay_us > 500000) {
+            ERROR("round_trip_delay %"PRId64" is too big\n", round_trip_delay_us);
+            sys_clk_off_us = 0;
+            continue;
+        }
+
+        // print success message
+        INFO("success: server=%s %s, stratum=%d, sys_clk_off_us %"PRId64" us\n", 
+             server_name, 
+             sock_addr_to_str(s, sizeof(s), (struct sockaddr *)&server_addr),
+             stratum,
+             sys_clk_off_us);
+        break;
+    }
+
+    // close socket
+    close(sfd);
+
+    // if failed then print error
+    if (i == MAX_SERVER_LIST) {
+        ERROR("failed to determine sys_clk_off_us\n");
+        return;
+    }
+
+    // set system_clock_offset_us
+    system_clock_offset_us = sys_clk_off_us;
 }
 
 // -----------------  FILE SYSTEM UTILS  ----------------------------------

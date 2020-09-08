@@ -429,9 +429,9 @@ int main(int argc, char **argv)
     // call is made to check if ntp is synced; and if it is not synced then to determine
     // a time offset which is incorporated in the time returned by calls to 
     // get_real_time_us and get_real_time_sec
-    // XXX should call ntp_synced here
-    // XXX ntp_init();
-    // XXX still support the tablet
+    if (!ntp_synced()) {
+        init_system_clock_offset_using_sntp();
+    }
 
     // initialize to live mode
     SET_CTL_MODE_LIVE();

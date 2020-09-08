@@ -60,18 +60,6 @@ typedef struct {
     int minor;
 } version_t;
 
-// -----------------  CONFIG READ/WRITE  --------------------------------------------
-
-#define MAX_CONFIG_VALUE_STR 100
-
-typedef struct {
-    const char *name;
-    char        value[MAX_CONFIG_VALUE_STR];
-} config_t;
-
-int config_read(char *config_path, config_t *config, int config_version);
-int config_write(char *config_path, config_t *config, int config_version);
-
 // -----------------  NETWORK COMMUNICATION  -----------------------------------------
 
 typedef struct {
@@ -338,8 +326,20 @@ int temper_read(void);
 #define TIMESPEC_TO_US(ts) ((uint64_t)(ts)->tv_sec *1000000 + (ts)->tv_nsec / 1000)
 #define TIMEVAL_TO_US(tv)  ((uint64_t)(tv)->tv_sec *1000000 + (tv)->tv_usec)
 
-#define MAX_TIME_STR    32
-#define MAX_INT_STR     32
+#define MAX_CONFIG_VALUE_STR 100
+#define MAX_TIME_STR         100
+#define MAX_INT_STR          50
+
+typedef struct {
+    const char *name;
+    char        value[MAX_CONFIG_VALUE_STR];
+} config_t;
+
+int config_read(char *config_path, config_t *config, int config_version);
+int config_write(char *config_path, config_t *config, int config_version);
+
+int getsockaddr(char *node, int port, int socktype, int protocol, struct sockaddr_in *ret_addr);
+char *sock_addr_to_str(char *s, int slen, struct sockaddr *addr);
 
 void logmsg_init(char *logmsg_file);
 void logmsg(char *lvl, const char *func, char *fmt, ...) __attribute__ ((format (printf, 3, 4)));
@@ -351,8 +351,8 @@ uint64_t microsec_timer(void);
 time_t get_real_time_sec(void);
 uint64_t get_real_time_us(void);
 char *time2str(char *str, time_t time, bool gmt);
-
 bool ntp_synced(void);
+void init_system_clock_offset_using_sntp(void);
 
 uint64_t fs_avail_bytes(char *path);
 

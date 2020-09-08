@@ -27,8 +27,6 @@ static int listen_sd = -1;
 // prototypes
 //
 
-static int getsockaddr(char * node, int port, struct sockaddr_in * ret_addr);
-static char *sock_addr_to_str(char * s, int slen, struct sockaddr * addr);
 static void set_sockopts(net_con_t *con);
 static char *sprintf_sockopts(int sfd, char *s, int slen);
 
@@ -88,7 +86,7 @@ void *net_connect(char *ipaddr, int port, char *password, int *connect_status)
     *connect_status = STATUS_INFO_OK;
 
     // connect to the server 
-    rc = getsockaddr(ipaddr, port, &sin);
+    rc = getsockaddr(ipaddr, port, SOCK_STREAM, IPPROTO_TCP, &sin);
     if (rc != 0) {
         ERROR("getsockaddr failed for %s, %s\n", ipaddr, strerror(errno));
         return NULL;
@@ -171,61 +169,6 @@ void net_disconnect(void *handle)
 
     // free it
     free(net_con);
-}
-
-static int getsockaddr(char * node, int port, struct sockaddr_in * ret_addr)
-{
-    struct addrinfo   hints;
-    struct addrinfo * result;
-    char              port_str[20];
-    int               ret;
-
-    sprintf(port_str, "%d", port);
-
-    bzero(&hints, sizeof(hints));
-    hints.ai_family   = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_protocol = 0;
-    hints.ai_flags    = AI_NUMERICSERV;
-
-    ret = getaddrinfo(node, port_str, &hints, &result);
-    if (ret != 0) {
-        ERROR("failed to get address of %s, %s\n", node, gai_strerror(ret));
-        return -1;
-    }
-    if (result->ai_addrlen != sizeof(*ret_addr)) {
-        ERROR("getaddrinfo result addrlen=%d, expected=%d\n",
-            (int)result->ai_addrlen, (int)sizeof(*ret_addr));
-        return -1;
-    }
-
-    *ret_addr = *(struct sockaddr_in*)result->ai_addr;
-    freeaddrinfo(result);
-    return 0;
-}
-
-static char *sock_addr_to_str(char * s, int slen, struct sockaddr * addr)
-{
-    char addr_str[100];
-    int port;
-
-    if (addr->sa_family == AF_INET) {
-        inet_ntop(AF_INET,
-                  &((struct sockaddr_in*)addr)->sin_addr,
-                  addr_str, sizeof(addr_str));
-        port = ((struct sockaddr_in*)addr)->sin_port;
-    } else if (addr->sa_family == AF_INET6) {
-        inet_ntop(AF_INET6,
-                  &((struct sockaddr_in6*)addr)->sin6_addr,
-                 addr_str, sizeof(addr_str));
-        port = ((struct sockaddr_in6*)addr)->sin6_port;
-    } else {
-        snprintf(s,slen,"Invalid AddrFamily %d", addr->sa_family);
-        return s;        
-    }
-
-    snprintf(s,slen,"%s:%d",addr_str,htons(port));
-    return s;
 }
 
 static void set_sockopts(net_con_t *con)
