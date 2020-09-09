@@ -95,7 +95,10 @@
 #define MOUSE_EVENT_NONE                      0
 #define MOUSE_EVENT_QUIT                      1
 #define MOUSE_EVENT_MODE_SELECT               2
-#define MOUSE_EVENT_CONFIG_SELECT             3
+#define MOUSE_EVENT_CONFIG_ENTER              3   // xxx put these togehtor
+#define MOUSE_EVENT_CONFIG_ACCEPT               20  //xxx number
+#define MOUSE_EVENT_CONFIG_CANCEL               21  //xxx number
+#define MOUSE_EVENT_CONFIG_SELECT             210  // xxx number, and how many
 #define MOUSE_EVENT_STATUS_SELECT             4
 #define MOUSE_EVENT_PLAYBACK_STOP             8
 #define MOUSE_EVENT_PLAYBACK_PLAY             9
@@ -601,7 +604,7 @@ void display_handler(void)
 
     SDL_Rect    ctlpane;
     SDL_Rect    ctlbpane;
-    SDL_Rect    keybdpane;
+    SDL_Rect    configpane;
     SDL_Rect    wcpane[MAX_WEBCAM];
     SDL_Rect    wctitlepane[MAX_WEBCAM];
     SDL_Rect    wcimagepane[MAX_WEBCAM];
@@ -775,11 +778,32 @@ void display_handler(void)
                 SET_CTL_MODE_PLAYBACK_PAUSE(true);
             }
 
-        } else if (event.mouse_event == MOUSE_EVENT_CONFIG_SELECT) {
-            config_mode         = !config_mode;
+        } else if (event.mouse_event == MOUSE_EVENT_CONFIG_ENTER) {
+            config_mode         = true;
             config_keybd_mode   = CONFIG_KEYBD_MODE_INACTIVE;
             config_keybd_str[0] = '\0';
             config_keybd_shift  = false;
+
+        } else if (event.mouse_event == MOUSE_EVENT_CONFIG_ACCEPT) {
+            config_mode         = false;
+            config_keybd_mode   = CONFIG_KEYBD_MODE_INACTIVE;  // AAA use struct so this can just be zeroed when done
+            config_keybd_str[0] = '\0';
+            config_keybd_shift  = false;
+
+            // AAA use a struct for config vars
+            // AAA apply the changes
+
+        } else if (event.mouse_event == MOUSE_EVENT_CONFIG_CANCEL) {
+            config_mode         = false;
+            config_keybd_mode   = CONFIG_KEYBD_MODE_INACTIVE;
+            config_keybd_str[0] = '\0';
+            config_keybd_shift  = false;
+
+        } else if (event.mouse_event >= MOUSE_EVENT_CONFIG_SELECT &&
+                   event.mouse_event < MOUSE_EVENT_CONFIG_SELECT + 10) {
+            int def_idx = event.mouse_event - MOUSE_EVENT_CONFIG_SELECT;
+            INFO("XXXXXXXX SELECT %d\n", def_idx);
+            config_keybd_mode = def_idx; // xxx  testing
 
         } else if (event.mouse_event == MOUSE_EVENT_STATUS_SELECT) {
             status_select = (status_select + 1) % 5;
@@ -904,6 +928,9 @@ void display_handler(void)
 
         } else if (event.mouse_event == MOUSE_EVENT_CONFIG_KEY_ENTER) {
             // XXX nothing here - there was before
+
+            INFO("XXX keybdstr = '%s'\n", config_keybd_str);
+
             config_keybd_mode   = CONFIG_KEYBD_MODE_INACTIVE;
             config_keybd_str[0] = '\0';
             config_keybd_shift  = false;
@@ -925,9 +952,9 @@ void display_handler(void)
             webcam[idx].change_resolution_request = true;
 
         } else if (event.mouse_event >= MOUSE_EVENT_WC_NAME_LIST &&
-                   event.mouse_event < MOUSE_EVENT_WC_NAME_LIST+32) {
+                   event.mouse_event < MOUSE_EVENT_WC_NAME_LIST+32) {  // XXX why 32
             int idx = (event.mouse_event - MOUSE_EVENT_WC_NAME_LIST) / 8;
-            int name_idx = (event.mouse_event - MOUSE_EVENT_WC_NAME_LIST) % 8;
+            int name_idx = (event.mouse_event - MOUSE_EVENT_WC_NAME_LIST) % 8; // XXX why mod 8
             webcam[idx].change_name_request = name_idx;
             webcam[idx].name_select_mode = false;
 
@@ -1054,9 +1081,9 @@ void display_handler(void)
     INIT_POS(ctlbpane, 
              win_width-CTL_WIDTH, win_height-CTL_ROWS*font[0].char_height,
              CTL_WIDTH, CTL_ROWS*font[0].char_height);
-    INIT_POS(keybdpane,
+    INIT_POS(configpane,
              0, 0,
-             win_width-CTL_WIDTH, win_height);
+             win_width, win_height);
 
     int small_win_count = 0;
     for (i = 0; i < MAX_WEBCAM; i++) {
@@ -1086,7 +1113,7 @@ void display_handler(void)
             case 3: wc_x = wc_w; wc_y = wc_h; break;
             }
         }
-        INIT_POS(wcpane[i], 
+        INIT_POS(wcpane[i],
                  wc_x, wc_y, 
                  wc_w, wc_h);
         INIT_POS(wctitlepane[i],
@@ -1104,225 +1131,219 @@ void display_handler(void)
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
     SDL_RenderClear(renderer);
 
-    // ------------------------------
-    // ---- config mode: ctlpane ----
-    // ------------------------------
+    // ---------------------------------
+    // ---- configpane: config mode ----
+    // ---------------------------------
 
+    // AAA work here
     if (config_mode) {
-        // Ctl Pane ...
-        //
-        // CONFIGURE
-        // 
-        // -- SERVER --  xxxxxxxxxxxxxxxxxxxxxxxxx
-        // <username>
-        // 
-        // <password>
-        // 
-        // SERVER_CHECK  xxxxxxxxxxxxxxxxxxxxxxxxx
-        // OK: WC_CNT=7  
-        // 
-        // -- NETWORK --
-        // PROXY_DISABLED
-        // 
-        // -- TIME --
-        // LOCALTIME
-        // OFF=5000 MS
+        if (config_keybd_mode == CONFIG_KEYBD_MODE_INACTIVE) {
+            int def_idx;
+            for (def_idx = 0; def_idx < 10; def_idx++) {
+                //if (strcmp( CONFIG_WC_DEF(def_idx), "<none>") == 0) {
+                    //continue;
+                //}
 
-        // title line
-        render_text(&ctlpane, 0, 0, "CONFIGURE", MOUSE_EVENT_NONE);
+                render_text(&configpane, 1.5*def_idx, 0, CONFIG_WC_DEF(def_idx), MOUSE_EVENT_CONFIG_SELECT+def_idx);
 
-        // server section
-        render_text(&ctlpane, 1.5, 0, "-- SERVER --", MOUSE_EVENT_NONE);
-
-        // network section
-        render_text(&ctlpane, 8.0, 0, "-- NETWORK --", MOUSE_EVENT_NONE);
-    }
-
-    // --------------------------------
-    // ---- config mode: keybdpane ----
-    // --------------------------------
-
-    if (config_keybd_mode != CONFIG_KEYBD_MODE_INACTIVE) {
-        static char * row_chars_unshift[4] = { "1234567890_",
-                                               "qwertyuiop",
-                                               "asdfghjkl",
-                                               "zxcvbnm" };
-        static char * row_chars_shift[4]   = { "1234567890_",
-                                               "QWERTYUIOP",
-                                               "ASDFGHJKL",
-                                               "ZXCVBNM" };
-        char ** row_chars;
-        int     r, c;
-
-
-        row_chars = (!config_keybd_shift ? row_chars_unshift : row_chars_shift);
-        r = PANE_ROWS(&keybdpane,1) / 2 - 4;
-        c = (PANE_COLS(&keybdpane,1) - 33) / 2;
-
-        for (i = 0; i < 4; i++) {
-            for (j = 0; row_chars[i][j] != '\0'; j++) {
-                str[0] = row_chars[i][j];
-                str[1] = '\0';
-                render_text_ex(&keybdpane, r+2*i, c+3*j, str, str[0], 1, false, 1);
             }
+
+            int r = PANE_ROWS(&configpane,0);
+            int c = PANE_COLS(&configpane,0);
+            render_text(&configpane, r-1, c-15, "ACCEPT", MOUSE_EVENT_CONFIG_ACCEPT);
+            render_text(&configpane, r-1, c-6, "CANCEL", MOUSE_EVENT_CONFIG_CANCEL);
+        } else {
+            static char * row_chars_unshift[4] = { "1234567890_",
+                                                   "qwertyuiop",
+                                                   "asdfghjkl",
+                                                   "zxcvbnm" };
+            static char * row_chars_shift[4]   = { "1234567890_",
+                                                   "QWERTYUIOP",
+                                                   "ASDFGHJKL",
+                                                   "ZXCVBNM" };
+            char ** row_chars;
+            int     r, c;
+
+//AAA space chars not working,  also need some others,  . _ -
+//AAAA move this higher
+//AAA prompt for the 4 values on the bottom
+//  enter will cycle through each
+// AAA for context, need
+//   config_keybd_mode  flag
+//   the 4 strings being editted
+//   which of the 4 strings is being worked
+// AAA   NEXT and PREV instead of ENTER
+//   flashing cursor will show which is active
+
+            row_chars = (!config_keybd_shift ? row_chars_unshift : row_chars_shift);
+            //r = PANE_ROWS(&configpane,1) / 2 - 4;
+            r = 0;
+            c = (PANE_COLS(&configpane,1) - 33) / 2;
+
+            for (i = 0; i < 4; i++) {
+                for (j = 0; row_chars[i][j] != '\0'; j++) {
+                    str[0] = row_chars[i][j];
+                    str[1] = '\0';
+                    render_text_ex(&configpane, r+2*i, c+3*j, str, str[0], 1, false, 1);
+                }
+            }
+
+            render_text_ex(&configpane, r+8, c+0,  "SHIFT", MOUSE_EVENT_CONFIG_KEY_SHIFT, 5, false, 1);
+            render_text_ex(&configpane, r+8, c+8,  "ESC",   MOUSE_EVENT_CONFIG_KEY_ESC,   3, false, 1);
+            render_text_ex(&configpane, r+8, c+14, "BS",    MOUSE_EVENT_CONFIG_KEY_BS,    2, false, 1);
+            render_text_ex(&configpane, r+8, c+19, "ENTER", MOUSE_EVENT_CONFIG_KEY_ENTER, 5, false, 1);
         }
 
-        render_text_ex(&keybdpane, r+8, c+0,  "SHIFT", MOUSE_EVENT_CONFIG_KEY_SHIFT, 5, false, 1);
-        render_text_ex(&keybdpane, r+8, c+8,  "ESC",   MOUSE_EVENT_CONFIG_KEY_ESC,   3, false, 1);
-        render_text_ex(&keybdpane, r+8, c+14, "BS",    MOUSE_EVENT_CONFIG_KEY_BS,    2, false, 1);
-        render_text_ex(&keybdpane, r+8, c+19, "ENTER", MOUSE_EVENT_CONFIG_KEY_ENTER, 5, false, 1);
+        // xxx comment
+        goto render_present;
     }
 
     // ----------------------------------------------
-    // ---- live & playback modes: image panes   ----
-    //----- (except when config_mode keybd actv) ----
+    // ---- image_panes: live & playback modes   ----
     // ----------------------------------------------
 
-    if (config_keybd_mode == CONFIG_KEYBD_MODE_INACTIVE) {
-        for (i = 0; i < MAX_WEBCAM; i++) {
-            webcam_t * wc            = &webcam[i];
-            char       win_id_str[2] = { 'A'+i, 0 };
+    for (i = 0; i < MAX_WEBCAM; i++) {
+        webcam_t * wc            = &webcam[i];
+        char       win_id_str[2] = { 'A'+i, 0 };
 
-            // acquire wc mutex
-            pthread_mutex_lock(&wc->image_mutex);
+        // acquire wc mutex
+        pthread_mutex_lock(&wc->image_mutex);
 
-            // display border 
-            if (wc->image_highlight && !wc->name_select_mode) {
-                SDL_SetRenderDrawColor(renderer, 255, 255, 255, SDL_ALPHA_OPAQUE);
-            } else {
-                SDL_SetRenderDrawColor(renderer, 0, 0, 255, SDL_ALPHA_OPAQUE);
-            }
-            SDL_RenderDrawRect(renderer, &wcpane[i]);
-            SDL_RenderDrawLine(renderer,
-                               wcpane[i].x, wcpane[i].y+font[0].char_height+1,
-                               wcpane[i].x+wcpane[i].w-1, wcpane[i].y+font[0].char_height+1);
-
-
-            // display text line
-            if (PANE_COLS(&wctitlepane[i],0) >= 1) {
-                render_text(&wctitlepane[i], 0, 0, win_id_str, MOUSE_EVENT_NONE);
-            }
-
-            if (PANE_COLS(&wctitlepane[i],0) >= 10) {
-                render_text_ex(&wctitlepane[i], 
-                            0, 2, 
-                            wc->image_name, 
-                            MOUSE_EVENT_WC_NAME+i,
-                            PANE_COLS(&wctitlepane[i],0) - 6, 
-                            false, 
-                            0);
-                render_text_ex(&wctitlepane[i], 
-                            0, PANE_COLS(&wctitlepane[i],0) - 3,
-                            wc->image_res, 
-                            mode.mode == MODE_LIVE ? MOUSE_EVENT_WC_RES+i : MOUSE_EVENT_NONE,
-                            3,
-                            false, 
-                            0);
-            } else if (PANE_COLS(&wctitlepane[i],0) >= 3) {
-                render_text_ex(&wctitlepane[i], 
-                            0, 2, 
-                            wc->image_name, 
-                            MOUSE_EVENT_WC_NAME+i,
-                            PANE_COLS(&wctitlepane[i],0) - 2, 
-                            false, 
-                            0);
-            }
-
-            // display webcam_names
-            if (wc->name_select_mode) {
-                // display the list of available webcam names to choose from
-                bool wc_name_none_has_been_rendered = false;
-                char wc_name[100];
-                for (j = 0; j < 8; j++) {  // XXX use a define, and use 10 not 8
-                    CONFIG_WC_DEF_NAME(j, wc_name);
-                    if (strcmp(wc_name, "<none>") == 0) {
-                        if (wc_name_none_has_been_rendered) continue;
-                        wc_name_none_has_been_rendered = true;
-                    }
-                    render_text(&wcimagepane[i], 0.5+1.5*j, 0,
-                                wc_name,
-                                MOUSE_EVENT_WC_NAME_LIST + 8 * i + j);
-                }
-
-                // register for the zoom event
-                event.mouse_event_pos[MOUSE_EVENT_WC_ZOOM+i] = wcimagepane[i];
-
-            // display the image
-            } else if (wc->image_display) {
-                // create new texture, if needed
-                if (wc->texture == NULL || 
-                    wc->texture_w != wc->image_w || 
-                    wc->texture_h != wc->image_h) 
-                {
-                    wc->texture_w = wc->image_w;
-                    wc->texture_h = wc->image_h;
-                    if (wc->texture != NULL) {
-                        SDL_DestroyTexture(wc->texture);
-                    }
-                    wc->texture = SDL_CreateTexture(renderer, 
-                                                    SDL_PIXELFORMAT_YUY2,
-                                                    SDL_TEXTUREACCESS_STREAMING,
-                                                    wc->texture_w,
-                                                    wc->texture_h);
-                    if (wc->texture == NULL) {
-                        ERROR("SDL_CreateTexture failed\n");
-                        exit(1);
-                    }
-                    DEBUG("created new texture %dx%d\n", wc->texture_w, wc->texture_h);
-                }
-
-                // update the texture with the image pixels
-                SDL_UpdateTexture(wc->texture,
-                                  NULL,            // update entire texture
-                                  wc->image,       // pixels
-                                  wc->image_w*2);  // pitch
-
-                // copy the texture to the render target
-                SDL_RenderCopy(renderer, wc->texture, NULL, &wcimagepane[i]);
-
-                // display the temperature
-                if (wc->image_temperature != INVALID_TEMPERATURE) {
-                    char temper_str[50];
-                    DEBUG("%s is %d F\n", wc->image_name, wc->image_temperature);
-                    sprintf(temper_str, "%d F", wc->image_temperature);
-                    render_text_ex(&wcimagepane[i],
-                                   0, 0,                          // row, col
-                                   temper_str, 
-                                   MOUSE_EVENT_NONE,
-                                   PANE_COLS(&wcimagepane[i],1),  // field_cols
-                                   true,                         // center, 
-                                   1);                            // font_id
-                }
-
-                // register for the zoom event
-                event.mouse_event_pos[MOUSE_EVENT_WC_ZOOM+i] = wcimagepane[i];
-
-            // display image notification text lines
-            } else {
-                int r = PANE_ROWS(&wcimagepane[i],0) / 2;
-                render_text_ex(&wcimagepane[i], r-1, 0, wc->image_notification_str1, MOUSE_EVENT_NONE, 
-                               PANE_COLS(&wcimagepane[i],0), true, 0);
-                render_text_ex(&wcimagepane[i], r,   0, wc->image_notification_str2, MOUSE_EVENT_NONE, 
-                               PANE_COLS(&wcimagepane[i],0), true, 0);
-                render_text_ex(&wcimagepane[i], r+1, 0, wc->image_notification_str3, MOUSE_EVENT_NONE, 
-                               PANE_COLS(&wcimagepane[i],0), true, 0);
-
-                // register for the zoom event
-                event.mouse_event_pos[MOUSE_EVENT_WC_ZOOM+i] = wcimagepane[i];
-            }
-
-            // relsease wc mutex
-            pthread_mutex_unlock(&wc->image_mutex);
+        // display border 
+        if (wc->image_highlight && !wc->name_select_mode) {
+            SDL_SetRenderDrawColor(renderer, 255, 255, 255, SDL_ALPHA_OPAQUE);
+        } else {
+            SDL_SetRenderDrawColor(renderer, 0, 0, 255, SDL_ALPHA_OPAQUE);
         }
+        SDL_RenderDrawRect(renderer, &wcpane[i]);
+        SDL_RenderDrawLine(renderer,
+                           wcpane[i].x, wcpane[i].y+font[0].char_height+1,
+                           wcpane[i].x+wcpane[i].w-1, wcpane[i].y+font[0].char_height+1);
+
+
+        // display text line
+        if (PANE_COLS(&wctitlepane[i],0) >= 1) {
+            render_text(&wctitlepane[i], 0, 0, win_id_str, MOUSE_EVENT_NONE);
+        }
+
+        if (PANE_COLS(&wctitlepane[i],0) >= 10) {
+            render_text_ex(&wctitlepane[i], 
+                        0, 2, 
+                        wc->image_name, 
+                        MOUSE_EVENT_WC_NAME+i,
+                        PANE_COLS(&wctitlepane[i],0) - 6, 
+                        false, 
+                        0);
+            render_text_ex(&wctitlepane[i], 
+                        0, PANE_COLS(&wctitlepane[i],0) - 3,
+                        wc->image_res, 
+                        mode.mode == MODE_LIVE ? MOUSE_EVENT_WC_RES+i : MOUSE_EVENT_NONE,
+                        3,
+                        false, 
+                        0);
+        } else if (PANE_COLS(&wctitlepane[i],0) >= 3) {
+            render_text_ex(&wctitlepane[i], 
+                        0, 2, 
+                        wc->image_name, 
+                        MOUSE_EVENT_WC_NAME+i,
+                        PANE_COLS(&wctitlepane[i],0) - 2, 
+                        false, 
+                        0);
+        }
+
+        // display webcam_names
+        if (wc->name_select_mode) {
+            // display the list of available webcam names to choose from
+            bool wc_name_none_has_been_rendered = false;
+            char wc_name[100];
+            for (j = 0; j < 8; j++) {  // XXX use a define, and use 10 not 8
+                CONFIG_WC_DEF_NAME(j, wc_name); // XXX rename to GET_DEF_NAME
+                if (strcmp(wc_name, "<none>") == 0) {
+                    if (wc_name_none_has_been_rendered) continue;
+                    wc_name_none_has_been_rendered = true;
+                }
+                render_text(&wcimagepane[i], 0.5+1.5*j, 0,
+                            wc_name,
+                            MOUSE_EVENT_WC_NAME_LIST + 8 * i + j);
+            }
+
+            // register for the zoom event
+            event.mouse_event_pos[MOUSE_EVENT_WC_ZOOM+i] = wcimagepane[i];
+
+        // display the image
+        } else if (wc->image_display) {
+            // create new texture, if needed
+            if (wc->texture == NULL || 
+                wc->texture_w != wc->image_w || 
+                wc->texture_h != wc->image_h) 
+            {
+                wc->texture_w = wc->image_w;
+                wc->texture_h = wc->image_h;
+                if (wc->texture != NULL) {
+                    SDL_DestroyTexture(wc->texture);
+                }
+                wc->texture = SDL_CreateTexture(renderer, 
+                                                SDL_PIXELFORMAT_YUY2,
+                                                SDL_TEXTUREACCESS_STREAMING,
+                                                wc->texture_w,
+                                                wc->texture_h);
+                if (wc->texture == NULL) {
+                    ERROR("SDL_CreateTexture failed\n");
+                    exit(1);
+                }
+                DEBUG("created new texture %dx%d\n", wc->texture_w, wc->texture_h);
+            }
+
+            // update the texture with the image pixels
+            SDL_UpdateTexture(wc->texture,
+                              NULL,            // update entire texture
+                              wc->image,       // pixels
+                              wc->image_w*2);  // pitch
+
+            // copy the texture to the render target
+            SDL_RenderCopy(renderer, wc->texture, NULL, &wcimagepane[i]);
+
+            // display the temperature
+            if (wc->image_temperature != INVALID_TEMPERATURE) {
+                char temper_str[50];
+                DEBUG("%s is %d F\n", wc->image_name, wc->image_temperature);
+                sprintf(temper_str, "%d F", wc->image_temperature);
+                render_text_ex(&wcimagepane[i],
+                               0, 0,                          // row, col
+                               temper_str, 
+                               MOUSE_EVENT_NONE,
+                               PANE_COLS(&wcimagepane[i],1),  // field_cols
+                               true,                         // center, 
+                               1);                            // font_id
+            }
+
+            // register for the zoom event
+            event.mouse_event_pos[MOUSE_EVENT_WC_ZOOM+i] = wcimagepane[i];
+
+        // display image notification text lines
+        } else {
+            int r = PANE_ROWS(&wcimagepane[i],0) / 2;
+            render_text_ex(&wcimagepane[i], r-1, 0, wc->image_notification_str1, MOUSE_EVENT_NONE, 
+                           PANE_COLS(&wcimagepane[i],0), true, 0);
+            render_text_ex(&wcimagepane[i], r,   0, wc->image_notification_str2, MOUSE_EVENT_NONE, 
+                           PANE_COLS(&wcimagepane[i],0), true, 0);
+            render_text_ex(&wcimagepane[i], r+1, 0, wc->image_notification_str3, MOUSE_EVENT_NONE, 
+                           PANE_COLS(&wcimagepane[i],0), true, 0);
+
+            // register for the zoom event
+            event.mouse_event_pos[MOUSE_EVENT_WC_ZOOM+i] = wcimagepane[i];
+        }
+
+        // relsease wc mutex
+        pthread_mutex_unlock(&wc->image_mutex);
     }
 
-    // ---------------------------------
-    // ---- live mode: ctlpane      ----
-    // ---- (except in config mode) ----
-    // ---------------------------------
+    // -------------------
+    // ---- ctlpane   ----
+    // -------------------
 
-    if (mode.mode == MODE_LIVE && !config_mode) {
-        // Ctl Pane ...
+    if (mode.mode == MODE_LIVE) {
+        // Live Mode Ctl Pane ...
         //
         // 00:  LIVE
         // 01:
@@ -1334,15 +1355,8 @@ void display_handler(void)
         render_text(&ctlpane, 0, 0, "LIVE", MOUSE_EVENT_MODE_SELECT);
         render_text(&ctlpane, 2, 0, str, MOUSE_EVENT_NONE);
         render_text(&ctlpane, 3, 0, str+9, MOUSE_EVENT_NONE);
-    }
-
-    // ---------------------------------
-    // ---- playback mode: ctlpane  ----
-    // ---- (except in config mode) ----
-    // ---------------------------------
-
-    if (mode.mode == MODE_PLAYBACK && !config_mode) {
-        // Ctl Pane ...
+    } else if (mode.mode == MODE_PLAYBACK) {
+        // Playback Mode Ctl Pane ...
         //
         // 00:   PLAYBACK         --- CONTROL
         // 01:
@@ -1411,9 +1425,9 @@ void display_handler(void)
         render_text(&ctlpane, 12.5, 8, "MIN+",  MOUSE_EVENT_PLAYBACK_MINUTE_PLUS);
     }
 
-    // ---------------------------------------------------------
-    // ---- live, playback and config modes: ctlpane bottom ----
-    // ---------------------------------------------------------
+    // ------------------------------------
+    // ---- ctlbpane (ctl pane bottom) ----
+    // ------------------------------------
 
     // Ctl Pane Bottom ...
     // 
@@ -1427,12 +1441,12 @@ void display_handler(void)
 
     bool okay = false;
 
-    if (config_mode) {
-        okay = PANE_ROWS(&ctlpane,0) >= 24;
-    } else if (mode.mode == MODE_LIVE) {
+    if (mode.mode == MODE_LIVE) {
         okay = PANE_ROWS(&ctlpane,0) >= 12;
     } else if (mode.mode == MODE_PLAYBACK) {
         okay = PANE_ROWS(&ctlpane,0) >= 25;
+    } else {
+        FATAL("mode %d invalid\n", mode.mode);
     }
 
     if (okay) {
@@ -1535,13 +1549,14 @@ void display_handler(void)
     }
 
     // config & quit
-    render_text(&ctlbpane, 6, 0, !config_mode ? "CONFIG" : "BACK", MOUSE_EVENT_CONFIG_SELECT);
+    render_text(&ctlbpane, 6, 0, "CONFIG", MOUSE_EVENT_CONFIG_ENTER);
     render_text(&ctlbpane, 6, 10, "QUIT", MOUSE_EVENT_QUIT);
 
     // -----------------
     // ---- present ----
     // -----------------
 
+render_present:
     SDL_RenderPresent(renderer);
 }
 
