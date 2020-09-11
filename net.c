@@ -387,10 +387,8 @@ int net_recv(void *handle, void *buff, int len, bool non_blocking)
     // do the recv
     start_us = microsec_timer();
     while (len_remaining) {
-        INFO("calling recv\n"); // XXX
         errno = 0;
         ret = recv(net_con->sd, buff, len_remaining, MSG_WAITALL);
-        INFO("recv len=%d  ret %d  errno=%d\n", len_remaining, ret, errno); // XXX
         if (ret <= 0) {
             if (ret == 0) errno = ENODATA;
             return -1;

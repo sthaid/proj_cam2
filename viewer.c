@@ -1,8 +1,6 @@
 // XXX use fixed size display on linux, and lock to landscape mode on phone
-// XXX need to handle change name
-// XXX add password support
-// XXX cleanup
-// XXX need a way to enter the config defs
+// XXX search XXX 
+// XXX review, and cleanup
 
 #include "wc.h"
 #include "button_sound.h"
@@ -241,6 +239,7 @@ typedef struct {
     char            ipaddr[MAX_STR];
     int             port;
     char            password[MAX_STR];
+    char            def_str[MAX_STR];
 
     uint32_t        state;
     struct mode_s   mode;
@@ -592,13 +591,14 @@ void display_handler(void)
     SDL_Rect    wcimagepane[MAX_WEBCAM];
 
     static struct {
-        bool enabled;
-        char wc_def[MAX_WC_DEF][MAX_STR];
-        bool keybd_enabled;
-        int  keybd_def_idx;
-        int  keybd_str_idx;
-        char keybd_str[4][MAX_STR];
-        bool keybd_shift;
+        bool  enabled;
+        char  wc_def[MAX_WC_DEF][MAX_STR];
+        bool  keybd_enabled;
+        int   keybd_def_idx;
+        int   keybd_str_idx;
+        char  keybd_str_value[4][MAX_STR];
+        char *keybd_str_prompt[4];
+        bool  keybd_shift;
     } config_mode;
 
     static int  status_select;
@@ -677,8 +677,8 @@ void display_handler(void)
                 event.mouse_event = 'A' + (key - 'a');
             } else if (shift && key == '-') {
                 event.mouse_event = '_';
-            } else if (!shift && key == '-') {
-                event.mouse_event = '-';
+            } else if (!shift && (key == '-' || key == '.')) {
+                event.mouse_event = key;
             } else {
                 break;
             }
@@ -893,7 +893,6 @@ void display_handler(void)
             webcam[idx].change_name_request = name_idx;
             webcam[idx].name_select_mode = false;
 
-        // AAA  code begins here
         } else if (event.mouse_event == MOUSE_EVENT_CONFIG_MODE_ENTER) {
             int def_idx;
             memset(&config_mode, 0, sizeof(config_mode));
@@ -903,7 +902,46 @@ void display_handler(void)
             }
 
         } else if (event.mouse_event == MOUSE_EVENT_CONFIG_ACCEPT) {
-            //AAAAAA copy back later, and CONFIG_WRITE
+            int wc_idx, def_idx;
+
+            // update the CONFIG_WC_DEF with the editted values from config_mode.wc_def
+            for (def_idx = 0; def_idx < MAX_WC_DEF; def_idx++) {
+                strcpy(CONFIG_WC_DEF(def_idx), config_mode.wc_def[def_idx]);
+            }
+
+            // loop over the webcams
+            for (wc_idx = 0; wc_idx < MAX_WEBCAM; wc_idx++) {
+                webcam_t * wc = &webcam[wc_idx];
+
+                // find webcam-definition that has name watching the webcam
+                for (def_idx = 0; def_idx < MAX_WC_DEF; def_idx++) {
+                    char wc_def_name[MAX_STR];
+                    sscanf(CONFIG_WC_DEF(def_idx), "%s", wc_def_name);
+                    if (strcmp(wc->name, wc_def_name) == 0) {
+                        break;
+                    }
+                }
+
+                // if no match found then use "none", which should always be MAX_WC_DEF-1
+                if (def_idx == MAX_WC_DEF) {
+                    def_idx = MAX_WC_DEF - 1;
+                }
+
+                // update the CONFIG_WC_SELECT with the possibly new def_idx value
+                sprintf(CONFIG_WC_SELECT(wc_idx), "%d", def_idx);
+
+                // if the def has changed then
+                //    request name change
+                // endif
+                if (strcmp(CONFIG_WC_DEF(def_idx), wc->def_str) != 0) {
+                    wc->change_name_request = def_idx;
+                }
+            }
+
+            // write the config to storage
+            CONFIG_WRITE();
+
+            // exit config_mode
             memset(&config_mode, 0, sizeof(config_mode));
             config_mode.enabled = false;
 
@@ -915,12 +953,17 @@ void display_handler(void)
                    event.mouse_event < MOUSE_EVENT_CONFIG_SELECT + MAX_WC_DEF) {
             int def_idx = event.mouse_event - MOUSE_EVENT_CONFIG_SELECT;
 
-            memset(config_mode.keybd_str, 0, sizeof(config_mode.keybd_str));
+            memset(config_mode.keybd_str_value, 0, sizeof(config_mode.keybd_str_value));
             sscanf(config_mode.wc_def[def_idx], "%s %s %s %s",
-                   config_mode.keybd_str[0],
-                   config_mode.keybd_str[1],
-                   config_mode.keybd_str[2],
-                   config_mode.keybd_str[3]);
+                   config_mode.keybd_str_value[0],
+                   config_mode.keybd_str_value[1],
+                   config_mode.keybd_str_value[2],
+                   config_mode.keybd_str_value[3]);
+
+            config_mode.keybd_str_prompt[0] = "name    ";
+            config_mode.keybd_str_prompt[1] = "ipaddr  ";
+            config_mode.keybd_str_prompt[2] = "port    ";
+            config_mode.keybd_str_prompt[3] = "password";
 
             config_mode.keybd_enabled    = true;
             config_mode.keybd_str_idx = 0;
@@ -929,7 +972,7 @@ void display_handler(void)
 
         } else if (event.mouse_event >= MOUSE_EVENT_CONFIG_KEYBD_ASCII_FIRST && 
                    event.mouse_event <= MOUSE_EVENT_CONFIG_KEYBD_ASCII_LAST) {
-            char *s = config_mode.keybd_str[config_mode.keybd_str_idx];
+            char *s = config_mode.keybd_str_value[config_mode.keybd_str_idx];
             char addchar[2] = {event.mouse_event, '\0'};
             strcat(s, addchar);
 
@@ -937,7 +980,7 @@ void display_handler(void)
             config_mode.keybd_shift = !config_mode.keybd_shift;
 
         } else if (event.mouse_event == MOUSE_EVENT_CONFIG_KEYBD_BS) {
-            char *s = config_mode.keybd_str[config_mode.keybd_str_idx];
+            char *s = config_mode.keybd_str_value[config_mode.keybd_str_idx];
             int len = strlen(s);
             if (len > 0) {
                 s[len-1] = '\0';
@@ -956,19 +999,21 @@ void display_handler(void)
             }
 
         } else if (event.mouse_event == MOUSE_EVENT_CONFIG_KEYBD_ACCEPT) {
-            if (strcmp(config_mode.keybd_str[0], "none") == 0 ||
-                strcmp(config_mode.keybd_str[0], "") == 0)
+            if (config_mode.keybd_def_idx == MAX_WC_DEF-1) {
+                strcpy(config_mode.wc_def[config_mode.keybd_def_idx], "none");
+            } else if (strcmp(config_mode.keybd_str_value[0], "none") == 0 ||
+                       strcmp(config_mode.keybd_str_value[0], "") == 0)
             {
                 memmove(config_mode.wc_def[config_mode.keybd_def_idx],
                         config_mode.wc_def[config_mode.keybd_def_idx+1],
                         sizeof(config_mode.wc_def[0]) * ((MAX_WC_DEF-1) - config_mode.keybd_def_idx));
             } else {
-                sprintf(config_mode.wc_def[config_mode.keybd_def_idx], // xxx use snprintf
+                sprintf(config_mode.wc_def[config_mode.keybd_def_idx],
                         "%s %s %s %s",
-                        config_mode.keybd_str[0],
-                        config_mode.keybd_str[1],
-                        config_mode.keybd_str[2],
-                        config_mode.keybd_str[3]);
+                        config_mode.keybd_str_value[0],
+                        config_mode.keybd_str_value[1],
+                        config_mode.keybd_str_value[2],
+                        config_mode.keybd_str_value[3]);
             }
 
             config_mode.keybd_enabled    = false;
@@ -1157,7 +1202,6 @@ void display_handler(void)
     // ---- configpane: config mode ----
     // ---------------------------------
 
-    // AAA code begins here
     if (config_mode.enabled) {
         if (config_mode.keybd_enabled == false) {
             int def_idx;
@@ -1206,7 +1250,10 @@ void display_handler(void)
 
             for (i = 0; i < 4; i++) {
                 char s[MAX_STR];
-                strcpy(s, config_mode.keybd_str[i]);
+                sprintf(s, "%s = %s", 
+                        config_mode.keybd_str_prompt[i], 
+                        config_mode.keybd_str_value[i]);
+
                 if (i == config_mode.keybd_str_idx) {
                     if ((microsec_timer() % 1000000) > 500000) {
                         strcat(s, "_");
@@ -1216,11 +1263,13 @@ void display_handler(void)
                 r += 1.5;
             }
             
-            r = PANE_ROWS(&configpane, 1) - 1;
             render_text_ex(&configpane, r, c, "NEXT",   MOUSE_EVENT_CONFIG_KEYBD_NEXT_STR, 4, false, 1);
             render_text_ex(&configpane, r, c+10, "PREV",   MOUSE_EVENT_CONFIG_KEYBD_PREV_STR, 4, false, 1);
-            render_text_ex(&configpane, r, c+20, "ACCEPT", MOUSE_EVENT_CONFIG_KEYBD_ACCEPT, 6, false, 1);
-            render_text_ex(&configpane, r, c+30, "CANCEL", MOUSE_EVENT_CONFIG_KEYBD_CANCEL, 6, false, 1);
+
+            r = PANE_ROWS(&configpane,0);
+            c = PANE_COLS(&configpane,0);
+            render_text(&configpane, r-1, c-15, "ACCEPT", MOUSE_EVENT_CONFIG_KEYBD_ACCEPT);
+            render_text(&configpane, r-1, c-6, "CANCEL", MOUSE_EVENT_CONFIG_KEYBD_CANCEL);
         }
 
         goto render_present;
@@ -1766,7 +1815,7 @@ void * webcam_thread(void * cx)
     wc->state = STATE_NOT_CONNECTED;
     wc->change_name_request = CONFIG_WC_SELECT(id)[0]-'0';
 
-    // xxx comment
+    // XXX comment
     DISPLAY_WC_NAME(wc->name);
 
     // acknowledge that this thread has completed initialization
@@ -1786,8 +1835,13 @@ void * webcam_thread(void * cx)
             sprintf(CONFIG_WC_SELECT(id), "%d", wc->change_name_request);
             CONFIG_WRITE();
 
-            sscanf(CONFIG_WC_DEF(wc->change_name_request), "%s %s %d %s",
-                   wc->name, wc->ipaddr, &wc->port, wc->password);
+            strcpy(wc->def_str, CONFIG_WC_DEF(wc->change_name_request));
+
+            wc->name[0]     = '\0';
+            wc->ipaddr[0]   = '\0';
+            wc->port        = 0;
+            wc->password[0] = '\0';
+            sscanf(wc->def_str, "%s %s %d %s", wc->name, wc->ipaddr, &wc->port, wc->password);
 
             DISPLAY_WC_NAME(wc->name);
 
