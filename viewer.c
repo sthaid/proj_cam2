@@ -16,6 +16,7 @@
 //
 
 #define MAX_WEBCAM                  4
+#define MAX_WC_DEF                  8     // care needed to change this
 #define MAX_STR                     200 
 
 #define WIN_WIDTH_INITIAL           1280
@@ -30,45 +31,9 @@
 #define RECONNECT_TIME_US           (10000*MS)
 
 #define CONFIG_WC_DEF(def_idx)      (config[(def_idx)].value)
-#define CONFIG_WC_SELECT(sel_idx)   (config[10+(sel_idx)].value)
-#define CONFIG_ZOOM                 (config[14].value[0])    // A, B, C, D, N
-#define CONFIG_DEBUG                (config[15].value[0])    // N, Y
-
-// XXX use FATAL if def_idx is out of range;
-//     and is the range 8 or 10
-// XXX other FATAL, when sscanf doesn't succeed
-#define CONFIG_WC_DEF_NAME(def_idx, def_name) \
-            do { \
-                (def_name)[0] = '\0'; \
-                if ((def_idx) >= 0 && (def_idx) <= 9) { \
-                    sscanf(CONFIG_WC_DEF(def_idx), "%s", (def_name)); \
-                } \
-            } while (0)
-#define CONFIG_WC_DEF_IPADDR(def_idx, def_ipaddr) \
-            do { \
-                char discard_str[100]; \
-                (def_ipaddr)[0] = '\0'; \
-                if ((def_idx) >= 0 && (def_idx) <= 9) { \
-                    sscanf(CONFIG_WC_DEF(def_idx), "%s %s", discard_str, (def_ipaddr)); \
-                } \
-            } while (0)
-#define CONFIG_WC_DEF_PORT(def_idx, def_port) \
-            do { \
-                char discard_str[100]; \
-                (def_port) = 0; \
-                if ((def_idx) >= 0 && (def_idx) <= 9) { \
-                    sscanf(CONFIG_WC_DEF(def_idx), "%s %s %d", discard_str, discard_str, &(def_port)); \
-                } \
-            } while (0)
-#define CONFIG_WC_DEF_PASSWORD(def_idx, def_password) \
-            do { \
-                char discard_str[100]; \
-                int discard_int; \
-                (def_password)[0] = '\0'; \
-                if ((def_idx) >= 0 && (def_idx) <= 9) { \
-                    sscanf(CONFIG_WC_DEF(def_idx), "%s %s %d %s", discard_str, discard_str, &discard_int, (def_password)); \
-                } \
-            } while (0)
+#define CONFIG_WC_SELECT(sel_idx)   (config[25+(sel_idx)].value)
+#define CONFIG_ZOOM                 (config[29].value[0])    // A, B, C, D, N
+#define CONFIG_DEBUG                (config[30].value[0])    // N, Y
 
 #ifndef ANDROID 
 #define SDL_FLAGS                   SDL_WINDOW_RESIZABLE
@@ -91,16 +56,12 @@
 #define FONT1_PTSIZE                 48 
 #endif
 
-#define MAX_MOUSE_EVENT                       256
-#define MOUSE_EVENT_NONE                      0
-#define MOUSE_EVENT_QUIT                      1
-#define MOUSE_EVENT_MODE_SELECT               2
-#define MOUSE_EVENT_CONFIG_ENTER              3   // xxx put these togehtor
-#define MOUSE_EVENT_CONFIG_ACCEPT               20  //xxx number
-#define MOUSE_EVENT_CONFIG_CANCEL               21  //xxx number
-#define MOUSE_EVENT_CONFIG_SELECT             210  // xxx number, and how many
-#define MOUSE_EVENT_STATUS_SELECT             4
-#define MOUSE_EVENT_PLAYBACK_STOP             8
+#define MAX_MOUSE_EVENT                       300
+#define MOUSE_EVENT_NONE                      0   // no event
+#define MOUSE_EVENT_QUIT                      1   // quit
+#define MOUSE_EVENT_MODE_SELECT               2   // select live or playback
+#define MOUSE_EVENT_STATUS_SELECT             3   // chosse status display (lower right corner)
+#define MOUSE_EVENT_PLAYBACK_STOP             8   // playback ctrls
 #define MOUSE_EVENT_PLAYBACK_PLAY             9
 #define MOUSE_EVENT_PLAYBACK_PAUSE            10
 #define MOUSE_EVENT_PLAYBACK_FORWARD          11
@@ -111,16 +72,22 @@
 #define MOUSE_EVENT_PLAYBACK_HOUR_PLUS        16
 #define MOUSE_EVENT_PLAYBACK_MINUTE_MINUS     17
 #define MOUSE_EVENT_PLAYBACK_MINUTE_PLUS      18
-#define MOUSE_EVENT_CONFIG_KEY_ASCII_FIRST    32     // ascii space
-#define MOUSE_EVENT_CONFIG_KEY_ASCII_LAST     126    // ascii '~'
-#define MOUSE_EVENT_CONFIG_KEY_SHIFT          127
-#define MOUSE_EVENT_CONFIG_KEY_ESC            128
-#define MOUSE_EVENT_CONFIG_KEY_BS             129
-#define MOUSE_EVENT_CONFIG_KEY_ENTER          130
-#define MOUSE_EVENT_WC_NAME_LIST              140    // 8 list events per wc, 32 total
-#define MOUSE_EVENT_WC_NAME                   180    // 4 webcams
-#define MOUSE_EVENT_WC_RES                    190    // 4 webcams
-#define MOUSE_EVENT_WC_ZOOM                   200    // 4 webcams
+#define MOUSE_EVENT_CONFIG_KEYBD_ASCII_FIRST  32     // config ctrls
+#define MOUSE_EVENT_CONFIG_KEYBD_ASCII_LAST   126
+#define MOUSE_EVENT_CONFIG_MODE_ENTER         140
+#define MOUSE_EVENT_CONFIG_ACCEPT             141 
+#define MOUSE_EVENT_CONFIG_CANCEL             142
+#define MOUSE_EVENT_CONFIG_SELECT             143       // room for 25 events (MAX_WC_DERS)
+#define MOUSE_EVENT_CONFIG_KEYBD_SHIFT        170
+#define MOUSE_EVENT_CONFIG_KEYBD_BS           171
+#define MOUSE_EVENT_CONFIG_KEYBD_NEXT_STR     172
+#define MOUSE_EVENT_CONFIG_KEYBD_PREV_STR     173
+#define MOUSE_EVENT_CONFIG_KEYBD_ACCEPT       174
+#define MOUSE_EVENT_CONFIG_KEYBD_CANCEL       175
+#define MOUSE_EVENT_WC_NAME_LIST              180    // webcam pane ctrls, room for 100 events (4xMAX_WC_DEFS)
+#define MOUSE_EVENT_WC_NAME                   280       // 4 events
+#define MOUSE_EVENT_WC_RES                    285       // 4 events
+#define MOUSE_EVENT_WC_ZOOM                   290       // 4 events
 
 #define QUIT_EVENT_REASON_MOUSE               1
 #define QUIT_EVENT_REASON_SDL                 2
@@ -270,10 +237,10 @@
 //
 
 typedef struct {
-    char            name[100];
-    char            ipaddr[100];
+    char            name[MAX_STR];
+    char            ipaddr[MAX_STR];
     int             port;
-    char            password[100];
+    char            password[MAX_STR];
 
     uint32_t        state;
     struct mode_s   mode;
@@ -351,23 +318,38 @@ event_t          event;
 
 char             config_path[MAX_STR];
 const int        config_version = 21;
-config_t         config[] = { { "wc_define_0",  "<none>" },
-                              { "wc_define_1",  "test1 73.114.235.71 9991 secret" },
-                              { "wc_define_2",  "test2 192.168.1.121 9990 secret" },
-                              { "wc_define_3",  "<none>" },
-                              { "wc_define_4",  "<none>" },
-                              { "wc_define_5",  "<none>" },
-                              { "wc_define_6",  "<none>" },
-                              { "wc_define_7",  "<none>" },
-                              { "wc_define_8",  "<none>" },
-                              { "wc_define_9",  "<none>" },
-                              { "wc_select_A", "1"        },
-                              { "wc_select_B", "2"     },
-                              { "wc_select_C", "0"     },
-                              { "wc_select_D", "0"     },
-                              { "zoom",      "N",          },
-                              { "debug",     "Y"           },
-                              { "",          ""            } };
+config_t         config[] = { { "wc_define_0",  "test1 router-ext-ip 9991 secret" },
+                              { "wc_define_1",  "test2 192.168.1.121 9990 secret" },
+                              { "wc_define_2",  "none" },
+                              { "wc_define_3",  "none" },
+                              { "wc_define_4",  "none" },
+                              { "wc_define_5",  "none" },
+                              { "wc_define_6",  "none" },
+                              { "wc_define_7",  "none" },
+                              { "wc_define_8",  "none" },
+                              { "wc_define_9",  "none" },
+                              { "wc_define_10", "none" },
+                              { "wc_define_11", "none" },
+                              { "wc_define_12", "none" },
+                              { "wc_define_13", "none" },
+                              { "wc_define_14", "none" },
+                              { "wc_define_15", "none" },
+                              { "wc_define_16", "none" },
+                              { "wc_define_17", "none" },
+                              { "wc_define_18", "none" },
+                              { "wc_define_19", "none" },
+                              { "wc_define_20", "none" },
+                              { "wc_define_21", "none" },
+                              { "wc_define_22", "none" },
+                              { "wc_define_23", "none" },
+                              { "wc_define_24", "none" },
+                              { "wc_select_A", "0"     },
+                              { "wc_select_B", "1"     },
+                              { "wc_select_C", "7"     },
+                              { "wc_select_D", "7"     },
+                              { "zoom",      "N",      },
+                              { "debug",     "Y"       },
+                              { "",          ""        } };
 
 //
 // prototypes
@@ -595,7 +577,7 @@ void display_handler(void)
         (x) == SDL_WINDOWEVENT_CLOSE        ? "SDL_WINDOWEVENT_CLOSE"        : \
                                               "????")
 
-    int         i, j, len;
+    int         i, j;
     char        str[MAX_STR];
     char        date_and_time_str[MAX_TIME_STR];
     SDL_Event   ev;
@@ -609,10 +591,16 @@ void display_handler(void)
     SDL_Rect    wctitlepane[MAX_WEBCAM];
     SDL_Rect    wcimagepane[MAX_WEBCAM];
 
-    static int  config_keybd_mode;
-    static bool config_mode;
-    static char config_keybd_str[MAX_STR];
-    static bool config_keybd_shift;
+    static struct {
+        bool enabled;
+        char wc_def[MAX_WC_DEF][MAX_STR];
+        bool keybd_enabled;
+        int  keybd_def_idx;
+        int  keybd_str_idx;
+        char keybd_str[4][MAX_STR];
+        bool keybd_shift;
+    } config_mode;
+
     static int  status_select;
 
     // ----------------------------------------
@@ -669,22 +657,28 @@ void display_handler(void)
             int  key = ev.key.keysym.sym;
             bool shift = (ev.key.keysym.mod & KMOD_SHIFT) != 0;
 
-            if (config_keybd_mode == CONFIG_KEYBD_MODE_INACTIVE) {
+            if (config_mode.keybd_enabled == false) {
                 break;
             }
 
-            if (key == 27) {
-                event.mouse_event = MOUSE_EVENT_CONFIG_KEY_ESC;
-            } else if (key == 8) {
-                event.mouse_event = MOUSE_EVENT_CONFIG_KEY_BS;
-            } else if (key == 13) {
-                event.mouse_event = MOUSE_EVENT_CONFIG_KEY_ENTER;
+            if (key == 8) {  // backspace
+                event.mouse_event = MOUSE_EVENT_CONFIG_KEYBD_BS;
+            } else if (key == '\r') {  // enter, aka carriage return
+                event.mouse_event = MOUSE_EVENT_CONFIG_KEYBD_ACCEPT;
+            } else if (key == '\e') {  // esc
+                event.mouse_event = MOUSE_EVENT_CONFIG_KEYBD_CANCEL;
+            } else if (key == SDLK_UP) {  // up arrow
+                event.mouse_event = MOUSE_EVENT_CONFIG_KEYBD_PREV_STR;
+            } else if (key == SDLK_DOWN || key == '\t') {  // down arrow || tab
+                event.mouse_event = MOUSE_EVENT_CONFIG_KEYBD_NEXT_STR;
             } else if (!shift && ((key >= 'a' && key <= 'z') || (key >= '0' && key <= '9'))) {
                 event.mouse_event = key;
             } else if (shift && (key >= 'a' && key <= 'z')) {
                 event.mouse_event = 'A' + (key - 'a');
             } else if (shift && key == '-') {
                 event.mouse_event = '_';
+            } else if (!shift && key == '-') {
+                event.mouse_event = '-';
             } else {
                 break;
             }
@@ -769,7 +763,7 @@ void display_handler(void)
         event_handled = true;
     }
 
-    // mouse events
+    // mouse and keyboard events
     if (event.mouse_event != MOUSE_EVENT_NONE) {
         if (event.mouse_event == MOUSE_EVENT_MODE_SELECT) {
             if (mode.mode == MODE_PLAYBACK) {
@@ -777,33 +771,6 @@ void display_handler(void)
             } else {
                 SET_CTL_MODE_PLAYBACK_PAUSE(true);
             }
-
-        } else if (event.mouse_event == MOUSE_EVENT_CONFIG_ENTER) {
-            config_mode         = true;
-            config_keybd_mode   = CONFIG_KEYBD_MODE_INACTIVE;
-            config_keybd_str[0] = '\0';
-            config_keybd_shift  = false;
-
-        } else if (event.mouse_event == MOUSE_EVENT_CONFIG_ACCEPT) {
-            config_mode         = false;
-            config_keybd_mode   = CONFIG_KEYBD_MODE_INACTIVE;  // AAA use struct so this can just be zeroed when done
-            config_keybd_str[0] = '\0';
-            config_keybd_shift  = false;
-
-            // AAA use a struct for config vars
-            // AAA apply the changes
-
-        } else if (event.mouse_event == MOUSE_EVENT_CONFIG_CANCEL) {
-            config_mode         = false;
-            config_keybd_mode   = CONFIG_KEYBD_MODE_INACTIVE;
-            config_keybd_str[0] = '\0';
-            config_keybd_shift  = false;
-
-        } else if (event.mouse_event >= MOUSE_EVENT_CONFIG_SELECT &&
-                   event.mouse_event < MOUSE_EVENT_CONFIG_SELECT + 10) {
-            int def_idx = event.mouse_event - MOUSE_EVENT_CONFIG_SELECT;
-            INFO("XXXXXXXX SELECT %d\n", def_idx);
-            config_keybd_mode = def_idx; // xxx  testing
 
         } else if (event.mouse_event == MOUSE_EVENT_STATUS_SELECT) {
             status_select = (status_select + 1) % 5;
@@ -903,38 +870,6 @@ void display_handler(void)
             }
             SET_CTL_MODE_PLAYBACK_TIME(delta_sec);
 
-        } else if (event.mouse_event >= MOUSE_EVENT_CONFIG_KEY_ASCII_FIRST && 
-                   event.mouse_event <= MOUSE_EVENT_CONFIG_KEY_ASCII_LAST) {
-            len = strlen(config_keybd_str);
-            if (len < MAX_STR-1) {
-                config_keybd_str[len] = event.mouse_event;
-                config_keybd_str[len+1] = '\0';
-            }
-
-        } else if (event.mouse_event == MOUSE_EVENT_CONFIG_KEY_SHIFT) {
-            config_keybd_shift = !config_keybd_shift;
-
-        } else if (event.mouse_event == MOUSE_EVENT_CONFIG_KEY_ESC) {
-            config_keybd_mode   = CONFIG_KEYBD_MODE_INACTIVE;
-            config_keybd_str[0] = '\0';
-            config_keybd_shift  = false;
-
-        } else if (event.mouse_event == MOUSE_EVENT_CONFIG_KEY_BS) {
-            if ((config_keybd_mode != CONFIG_KEYBD_MODE_INACTIVE) && 
-                ((len = strlen(config_keybd_str)) > 0)) 
-            {
-                config_keybd_str[len-1] = '\0';
-            }
-
-        } else if (event.mouse_event == MOUSE_EVENT_CONFIG_KEY_ENTER) {
-            // XXX nothing here - there was before
-
-            INFO("XXX keybdstr = '%s'\n", config_keybd_str);
-
-            config_keybd_mode   = CONFIG_KEYBD_MODE_INACTIVE;
-            config_keybd_str[0] = '\0';
-            config_keybd_shift  = false;
-
         } else if (event.mouse_event >= MOUSE_EVENT_WC_ZOOM && 
                    event.mouse_event < MOUSE_EVENT_WC_ZOOM + MAX_WEBCAM) {
             int idx = event.mouse_event - MOUSE_EVENT_WC_ZOOM;
@@ -952,11 +887,100 @@ void display_handler(void)
             webcam[idx].change_resolution_request = true;
 
         } else if (event.mouse_event >= MOUSE_EVENT_WC_NAME_LIST &&
-                   event.mouse_event < MOUSE_EVENT_WC_NAME_LIST+32) {  // XXX why 32
-            int idx = (event.mouse_event - MOUSE_EVENT_WC_NAME_LIST) / 8;
-            int name_idx = (event.mouse_event - MOUSE_EVENT_WC_NAME_LIST) % 8; // XXX why mod 8
+                   event.mouse_event < MOUSE_EVENT_WC_NAME_LIST+(MAX_WEBCAM*MAX_WC_DEF)) {
+            int idx = (event.mouse_event - MOUSE_EVENT_WC_NAME_LIST) / MAX_WC_DEF;
+            int name_idx = (event.mouse_event - MOUSE_EVENT_WC_NAME_LIST) % MAX_WC_DEF;
             webcam[idx].change_name_request = name_idx;
             webcam[idx].name_select_mode = false;
+
+        // AAA  code begins here
+        } else if (event.mouse_event == MOUSE_EVENT_CONFIG_MODE_ENTER) {
+            int def_idx;
+            memset(&config_mode, 0, sizeof(config_mode));
+            config_mode.enabled = true;
+            for (def_idx = 0; def_idx < MAX_WC_DEF; def_idx++) {
+                strcpy(config_mode.wc_def[def_idx], CONFIG_WC_DEF(def_idx));
+            }
+
+        } else if (event.mouse_event == MOUSE_EVENT_CONFIG_ACCEPT) {
+            //AAAAAA copy back later, and CONFIG_WRITE
+            memset(&config_mode, 0, sizeof(config_mode));
+            config_mode.enabled = false;
+
+        } else if (event.mouse_event == MOUSE_EVENT_CONFIG_CANCEL) {
+            memset(&config_mode, 0, sizeof(config_mode));
+            config_mode.enabled = false;
+
+        } else if (event.mouse_event >= MOUSE_EVENT_CONFIG_SELECT &&
+                   event.mouse_event < MOUSE_EVENT_CONFIG_SELECT + MAX_WC_DEF) {
+            int def_idx = event.mouse_event - MOUSE_EVENT_CONFIG_SELECT;
+
+            memset(config_mode.keybd_str, 0, sizeof(config_mode.keybd_str));
+            sscanf(config_mode.wc_def[def_idx], "%s %s %s %s",
+                   config_mode.keybd_str[0],
+                   config_mode.keybd_str[1],
+                   config_mode.keybd_str[2],
+                   config_mode.keybd_str[3]);
+
+            config_mode.keybd_enabled    = true;
+            config_mode.keybd_str_idx = 0;
+            config_mode.keybd_def_idx = def_idx;
+            config_mode.keybd_shift   = false;
+
+        } else if (event.mouse_event >= MOUSE_EVENT_CONFIG_KEYBD_ASCII_FIRST && 
+                   event.mouse_event <= MOUSE_EVENT_CONFIG_KEYBD_ASCII_LAST) {
+            char *s = config_mode.keybd_str[config_mode.keybd_str_idx];
+            char addchar[2] = {event.mouse_event, '\0'};
+            strcat(s, addchar);
+
+        } else if (event.mouse_event == MOUSE_EVENT_CONFIG_KEYBD_SHIFT) {
+            config_mode.keybd_shift = !config_mode.keybd_shift;
+
+        } else if (event.mouse_event == MOUSE_EVENT_CONFIG_KEYBD_BS) {
+            char *s = config_mode.keybd_str[config_mode.keybd_str_idx];
+            int len = strlen(s);
+            if (len > 0) {
+                s[len-1] = '\0';
+            }
+
+        } else if (event.mouse_event == MOUSE_EVENT_CONFIG_KEYBD_NEXT_STR) {
+            config_mode.keybd_str_idx++;
+            if (config_mode.keybd_str_idx == 4) {
+                config_mode.keybd_str_idx = 0;
+            }
+
+        } else if (event.mouse_event == MOUSE_EVENT_CONFIG_KEYBD_PREV_STR) {
+            config_mode.keybd_str_idx--;
+            if (config_mode.keybd_str_idx < 0) {
+                config_mode.keybd_str_idx = 3;
+            }
+
+        } else if (event.mouse_event == MOUSE_EVENT_CONFIG_KEYBD_ACCEPT) {
+            if (strcmp(config_mode.keybd_str[0], "none") == 0 ||
+                strcmp(config_mode.keybd_str[0], "") == 0)
+            {
+                memmove(config_mode.wc_def[config_mode.keybd_def_idx],
+                        config_mode.wc_def[config_mode.keybd_def_idx+1],
+                        sizeof(config_mode.wc_def[0]) * ((MAX_WC_DEF-1) - config_mode.keybd_def_idx));
+            } else {
+                sprintf(config_mode.wc_def[config_mode.keybd_def_idx], // xxx use snprintf
+                        "%s %s %s %s",
+                        config_mode.keybd_str[0],
+                        config_mode.keybd_str[1],
+                        config_mode.keybd_str[2],
+                        config_mode.keybd_str[3]);
+            }
+
+            config_mode.keybd_enabled    = false;
+            config_mode.keybd_str_idx = 0;
+            config_mode.keybd_def_idx = 0;
+            config_mode.keybd_shift   = false;
+
+        } else if (event.mouse_event == MOUSE_EVENT_CONFIG_KEYBD_CANCEL) {
+            config_mode.keybd_enabled    = false;
+            config_mode.keybd_str_idx = 0;
+            config_mode.keybd_def_idx = 0;
+            config_mode.keybd_shift   = false;
 
         } else {
             ERROR("invalid mouse_event %d\n", event.mouse_event);
@@ -1050,9 +1074,7 @@ void display_handler(void)
             break;
         }
 
-        if (config_keybd_mode != CONFIG_KEYBD_MODE_INACTIVE &&
-            curr_us - last_window_update_us > 100*MS) 
-        {
+        if (config_mode.keybd_enabled && curr_us - last_window_update_us > 100*MS) {
             break;
         }
 
@@ -1135,17 +1157,18 @@ void display_handler(void)
     // ---- configpane: config mode ----
     // ---------------------------------
 
-    // AAA work here
-    if (config_mode) {
-        if (config_keybd_mode == CONFIG_KEYBD_MODE_INACTIVE) {
+    // AAA code begins here
+    if (config_mode.enabled) {
+        if (config_mode.keybd_enabled == false) {
             int def_idx;
-            for (def_idx = 0; def_idx < 10; def_idx++) {
-                //if (strcmp( CONFIG_WC_DEF(def_idx), "<none>") == 0) {
-                    //continue;
-                //}
+            char wc_name[MAX_STR];
 
-                render_text(&configpane, 1.5*def_idx, 0, CONFIG_WC_DEF(def_idx), MOUSE_EVENT_CONFIG_SELECT+def_idx);
-
+            for (def_idx = 0; def_idx < MAX_WC_DEF; def_idx++) {
+                render_text(&configpane, 1.5*def_idx, 0, config_mode.wc_def[def_idx], MOUSE_EVENT_CONFIG_SELECT+def_idx);
+                sscanf(config_mode.wc_def[def_idx], "%s", wc_name);
+                if (strcmp(wc_name, "none") == 0) {
+                    break;
+                }
             }
 
             int r = PANE_ROWS(&configpane,0);
@@ -1153,30 +1176,18 @@ void display_handler(void)
             render_text(&configpane, r-1, c-15, "ACCEPT", MOUSE_EVENT_CONFIG_ACCEPT);
             render_text(&configpane, r-1, c-6, "CANCEL", MOUSE_EVENT_CONFIG_CANCEL);
         } else {
-            static char * row_chars_unshift[4] = { "1234567890_",
+            static char * row_chars_unshift[4] = { "1234567890",
                                                    "qwertyuiop",
                                                    "asdfghjkl",
-                                                   "zxcvbnm" };
+                                                   "zxcvbnm.-_" };
             static char * row_chars_shift[4]   = { "1234567890_",
                                                    "QWERTYUIOP",
                                                    "ASDFGHJKL",
-                                                   "ZXCVBNM" };
+                                                   "ZXCVBNM.-_" };
             char ** row_chars;
-            int     r, c;
+            double  r, c;
 
-//AAA space chars not working,  also need some others,  . _ -
-//AAAA move this higher
-//AAA prompt for the 4 values on the bottom
-//  enter will cycle through each
-// AAA for context, need
-//   config_keybd_mode  flag
-//   the 4 strings being editted
-//   which of the 4 strings is being worked
-// AAA   NEXT and PREV instead of ENTER
-//   flashing cursor will show which is active
-
-            row_chars = (!config_keybd_shift ? row_chars_unshift : row_chars_shift);
-            //r = PANE_ROWS(&configpane,1) / 2 - 4;
+            row_chars = (!config_mode.keybd_shift ? row_chars_unshift : row_chars_shift);
             r = 0;
             c = (PANE_COLS(&configpane,1) - 33) / 2;
 
@@ -1184,17 +1195,34 @@ void display_handler(void)
                 for (j = 0; row_chars[i][j] != '\0'; j++) {
                     str[0] = row_chars[i][j];
                     str[1] = '\0';
-                    render_text_ex(&configpane, r+2*i, c+3*j, str, str[0], 1, false, 1);
+                    render_text_ex(&configpane, r, c+3*j, str, str[0], 1, false, 1);
                 }
+                r += 1.5;
             }
 
-            render_text_ex(&configpane, r+8, c+0,  "SHIFT", MOUSE_EVENT_CONFIG_KEY_SHIFT, 5, false, 1);
-            render_text_ex(&configpane, r+8, c+8,  "ESC",   MOUSE_EVENT_CONFIG_KEY_ESC,   3, false, 1);
-            render_text_ex(&configpane, r+8, c+14, "BS",    MOUSE_EVENT_CONFIG_KEY_BS,    2, false, 1);
-            render_text_ex(&configpane, r+8, c+19, "ENTER", MOUSE_EVENT_CONFIG_KEY_ENTER, 5, false, 1);
+            render_text_ex(&configpane, r, c+0,  "SHIFT",     MOUSE_EVENT_CONFIG_KEYBD_SHIFT, 5, false, 1);
+            render_text_ex(&configpane, r, c+10, "BACKSPACE", MOUSE_EVENT_CONFIG_KEYBD_BS,    9, false, 1);
+            r += 1.5;
+
+            for (i = 0; i < 4; i++) {
+                char s[MAX_STR];
+                strcpy(s, config_mode.keybd_str[i]);
+                if (i == config_mode.keybd_str_idx) {
+                    if ((microsec_timer() % 1000000) > 500000) {
+                        strcat(s, "_");
+                    }
+                }
+                render_text_ex(&configpane, r, c, s, MOUSE_EVENT_NONE, strlen(s), false, 1);
+                r += 1.5;
+            }
+            
+            r = PANE_ROWS(&configpane, 1) - 1;
+            render_text_ex(&configpane, r, c, "NEXT",   MOUSE_EVENT_CONFIG_KEYBD_NEXT_STR, 4, false, 1);
+            render_text_ex(&configpane, r, c+10, "PREV",   MOUSE_EVENT_CONFIG_KEYBD_PREV_STR, 4, false, 1);
+            render_text_ex(&configpane, r, c+20, "ACCEPT", MOUSE_EVENT_CONFIG_KEYBD_ACCEPT, 6, false, 1);
+            render_text_ex(&configpane, r, c+30, "CANCEL", MOUSE_EVENT_CONFIG_KEYBD_CANCEL, 6, false, 1);
         }
 
-        // xxx comment
         goto render_present;
     }
 
@@ -1254,17 +1282,16 @@ void display_handler(void)
         // display webcam_names
         if (wc->name_select_mode) {
             // display the list of available webcam names to choose from
-            bool wc_name_none_has_been_rendered = false;
-            char wc_name[100];
-            for (j = 0; j < 8; j++) {  // XXX use a define, and use 10 not 8
-                CONFIG_WC_DEF_NAME(j, wc_name); // XXX rename to GET_DEF_NAME
-                if (strcmp(wc_name, "<none>") == 0) {
-                    if (wc_name_none_has_been_rendered) continue;
-                    wc_name_none_has_been_rendered = true;
-                }
-                render_text(&wcimagepane[i], 0.5+1.5*j, 0,
+            char wc_name[MAX_STR];
+            int def_idx;
+            for (def_idx = 0; def_idx < MAX_WC_DEF; def_idx++) {
+                sscanf(CONFIG_WC_DEF(def_idx), "%s", wc_name);
+                render_text(&wcimagepane[i], 0.5+1.5*def_idx, 0,
                             wc_name,
-                            MOUSE_EVENT_WC_NAME_LIST + 8 * i + j);
+                            MOUSE_EVENT_WC_NAME_LIST + MAX_WC_DEF * i + def_idx);
+                if (strcmp(wc_name, "none") == 0) {
+                    break;
+                }
             }
 
             // register for the zoom event
@@ -1305,7 +1332,7 @@ void display_handler(void)
 
             // display the temperature
             if (wc->image_temperature != INVALID_TEMPERATURE) {
-                char temper_str[50];
+                char temper_str[MAX_STR];
                 DEBUG("%s is %d F\n", wc->image_name, wc->image_temperature);
                 sprintf(temper_str, "%d F", wc->image_temperature);
                 render_text_ex(&wcimagepane[i],
@@ -1458,7 +1485,7 @@ void display_handler(void)
 
             static uint64_t last_us;
             static uint64_t last_recvd_frames[MAX_WEBCAM];
-            static char     static_str[MAX_WEBCAM][32];
+            static char     static_str[MAX_WEBCAM][MAX_STR];
             
             // if greater then 3 second since last values saved then
             //   recompute rates
@@ -1549,7 +1576,7 @@ void display_handler(void)
     }
 
     // config & quit
-    render_text(&ctlbpane, 6, 0, "CONFIG", MOUSE_EVENT_CONFIG_ENTER);
+    render_text(&ctlbpane, 6, 0, "CONFIG", MOUSE_EVENT_CONFIG_MODE_ENTER);
     render_text(&ctlbpane, 6, 10, "QUIT", MOUSE_EVENT_QUIT);
 
     // -----------------
@@ -1708,7 +1735,7 @@ void * webcam_thread(void * cx)
         } while (0)
 
     #define OK_TO_CONNECT \
-        (strcmp(wc->name, "<none>") != 0)
+        (strcmp(wc->name, "none") != 0)
 
     #define DISCONNECT() \
         do { \
@@ -1749,24 +1776,22 @@ void * webcam_thread(void * cx)
     while (true) {
         // handle change_name_request
         if (wc->change_name_request != -1) {
-            char select_value_str[30];
-
-            // XXX FATAL if change_name_request is invalid
+            if (wc->change_name_request < 0 || wc->change_name_request >= MAX_WC_DEF) {
+                FATAL("invalid wc->change_name_request = %d\n", wc->change_name_request);
+            }
 
             DISCONNECT();
             STATE_CHANGE(STATE_NOT_CONNECTED, "", "", "");
 
-            sprintf(select_value_str, "%d", wc->change_name_request);
-            strcpy(CONFIG_WC_SELECT(id), select_value_str);
+            sprintf(CONFIG_WC_SELECT(id), "%d", wc->change_name_request);
             CONFIG_WRITE();
-            wc->change_name_request = -1;
 
-            CONFIG_WC_DEF_NAME    (CONFIG_WC_SELECT(id)[0]-'0', wc->name);
-            CONFIG_WC_DEF_IPADDR  (CONFIG_WC_SELECT(id)[0]-'0', wc->ipaddr);
-            CONFIG_WC_DEF_PORT    (CONFIG_WC_SELECT(id)[0]-'0', wc->port);
-            CONFIG_WC_DEF_PASSWORD(CONFIG_WC_SELECT(id)[0]-'0', wc->password);
+            sscanf(CONFIG_WC_DEF(wc->change_name_request), "%s %s %d %s",
+                   wc->name, wc->ipaddr, &wc->port, wc->password);
 
             DISPLAY_WC_NAME(wc->name);
+
+            wc->change_name_request = -1;
         }
 
         // state processing

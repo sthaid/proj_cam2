@@ -2,6 +2,7 @@
 
 // -----------------  CONFIG READ / WRITE  -------------------------------
 
+// XXX this should check for array bound
 int config_read(char * config_path, config_t * config, int config_version)
 {
     FILE * fp;
