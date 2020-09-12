@@ -69,7 +69,7 @@ void net_disconnect(void *handle);
 int net_send(void *handle, void *buff, int len);
 int net_recv(void *handle, void *buff, int len, bool non_blocking);
 
-// -----------------  WEBCAM DEFINITIONS  ----------------------------------------------
+// -----------------  WEBCAM COMMON DEFINITIONS  ---------------------------------------
 
 // msg_type for messages from webcam
 #define MSG_TYPE_FRAME                     1 
@@ -84,128 +84,65 @@ int net_recv(void *handle, void *buff, int len, bool non_blocking);
 #define RP_MAX_FRAME_DATA_LEN   500000
 
 // status values
-// XXX which are not needed
-#define STATUS_INFO_OK                       0
-#define STATUS_INFO_STOPPED                  1
-#define STATUS_INFO_GAP                      2
-#define STATUS_INFO_LOADING_IMAGE            3
-#define STATUS_INFO_CHANGING_RESOLUTION      4
-#define STATUS_INFO_NOT_RUN                  5
-#define STATUS_INFO_IN_PROGRESS              6
-#define STATUS_ERR_GENERAL_FAILURE           100
-#define STATUS_ERR_FRAME_FILE_OFFSET_INVLD   101
-#define STATUS_ERR_FRAME_FILE_EMPTY          102
-#define STATUS_ERR_FRAME_BEFORE_BOD          103
-#define STATUS_ERR_FRAME_AFTER_EOD           104
-#define STATUS_ERR_FRAME_NOT_FOUND_1         105
-#define STATUS_ERR_FRAME_NOT_FOUND_2         106
-#define STATUS_ERR_FRAME_NOT_FOUND_3         107
-#define STATUS_ERR_FRAME_NOT_FOUND_4         108
-#define STATUS_ERR_FRAME_HDR_READ            109
-#define STATUS_ERR_FRAME_HDR_MAGIC           110
-#define STATUS_ERR_FRAME_HDR_CHECKSUM        111
-#define STATUS_ERR_FRAME_DATA_MEM_ALLOC      112
-#define STATUS_ERR_FRAME_DATA_READ           113
-#define STATUS_ERR_FRAME_TIME                114
-#define STATUS_ERR_JPEG_DECODE               115
-#define STATUS_ERR_DEAD                      116
-#define STATUS_ERR_WEBCAM_FAILURE            117
-#define STATUS_ERR_SYSTEM_CLOCK_NOT_SET      118
-#define STATUS_ERR_NO_PASSWORD               120
-#define STATUS_ERR_HANDLE_TOO_BIG            121
-#define STATUS_ERR_GET_SERVER_ADDR           122
-#define STATUS_ERR_CREATE_SOCKET             123
-#define STATUS_ERR_GET_LOCAL_ADDR            124
-#define STATUS_ERR_BIND_LOCAL_ADDR           125
-#define STATUS_ERR_GETSOCKNAME               126
-#define STATUS_ERR_SENDTO                    127
-#define STATUS_ERR_RECVFROM                  128
-#define STATUS_ERR_NO_RESPONSE_FROM_SERVER   129
-#define STATUS_ERR_INVALID_CONNECTION_ID     130
-#define STATUS_ERR_DUPLICATE_CONNECTION_ID   131
-#define STATUS_ERR_TOO_MANY_CONNECTIONS      132
-#define STATUS_ERR_CONNECTION_MEM_ALLOC      133
-#define STATUS_ERR_NO_RESPONSE_FROM_PEER     134
-#define STATUS_ERR_FAILED_CONNECT_TO_SERVER  135
-#define STATUS_ERR_INVLD_RESP_FROM_SERVER    136
-#define STATUS_ERR_PASSWORD_LENGTH           138
-#define STATUS_ERR_PASSWORD_CHARS            140
-#define STATUS_ERR_ACCESS_DENIED             141
-#define STATUS_ERR_INVALID_LINK              142
-#define STATUS_ERR_WC_DOES_NOT_EXIST         144
-#define STATUS_ERR_WC_NOT_ONLINE             145
-#define STATUS_ERR_WC_ADDR_NOT_AVAIL         146
-#define STATUS_ERR_WCNAME_CHARS              150
-#define STATUS_ERR_WCNAME_LENGTH             151
-#define STATUS_ERR_WC_ACCESS_LIST_LENGTH     152
-#define STATUS_ERR_MUST_BE_ROOT              153
-#define STATUS_ERR_GET_WC_ADDR               154
-#define STATUS_ERR_CONNECT_TO_WC             155
-#define STATUS_ERR_SEND_PSSWD_TO_WC          156
-#define STATUS_ERR_RECV_PSSWD_RESP_FROM_WC   157
-#define STATUS_ERR_INVALID_PSSWD             158
+#define STATUS_INFO_OK                       0     // status okay
+#define STATUS_INFO_GAP                      1
+#define STATUS_INFO_CHANGING_RESOLUTION      2
+#define STATUS_INFO_STOPPED                  3
+#define STATUS_ERR_GENERAL_FAILURE           100   // status error
+#define STATUS_ERR_GET_WC_ADDR               101
+#define STATUS_ERR_CONNECT_TO_WC             102
+#define STATUS_ERR_SEND_PSSWD_TO_WC          103
+#define STATUS_ERR_RECV_PSSWD_RESP_FROM_WC   104
+#define STATUS_ERR_INVALID_PSSWD             105
+#define STATUS_ERR_DEAD                      106
+#define STATUS_ERR_JPEG_DECODE               107
+#define STATUS_ERR_WEBCAM_FAILURE            108
+#define STATUS_ERR_SYSTEM_CLOCK_NOT_SET      109
+#define STATUS_ERR_FRAME_BEFORE_BOD          110
+#define STATUS_ERR_FRAME_AFTER_EOD           111
+#define STATUS_ERR_FRAME_TIME                112
+#define STATUS_ERR_FRAME_DATA_MEM_ALLOC      113
+#define STATUS_ERR_FRAME_DATA_READ           114
+#define STATUS_ERR_FRAME_FILE_OFFSET_INVLD   115
+#define STATUS_ERR_FRAME_HDR_READ            116
+#define STATUS_ERR_FRAME_HDR_MAGIC           117
+#define STATUS_ERR_FRAME_HDR_CHECKSUM        118
+#define STATUS_ERR_FRAME_FILE_EMPTY          119
+#define STATUS_ERR_FRAME_NOT_FOUND_1         120
+#define STATUS_ERR_FRAME_NOT_FOUND_2         121
+#define STATUS_ERR_FRAME_NOT_FOUND_3         122
+#define STATUS_ERR_FRAME_NOT_FOUND_4         123
 
 #define STATUS_STR(status) \
-    ((status) == STATUS_INFO_OK                       ? "OK"                             : \
-     (status) == STATUS_INFO_STOPPED                  ? "STOPPED"                        : \
-     (status) == STATUS_INFO_GAP                      ? "GAP"                            : \
-     (status) == STATUS_INFO_LOADING_IMAGE            ? "LOADING_IMAGE"                  : \
-     (status) == STATUS_INFO_CHANGING_RESOLUTION      ? "CHANGING_RESOLUTION"            : \
-     (status) == STATUS_INFO_NOT_RUN                  ? "NOT_RUN"                        : \
-     (status) == STATUS_INFO_IN_PROGRESS              ? "IN_PROGRESS"                    : \
-     (status) == STATUS_ERR_GENERAL_FAILURE           ? "GENERAL_FAILURE"                : \
-     (status) == STATUS_ERR_FRAME_FILE_OFFSET_INVLD   ? "FRAME_FILE_OFFSET_INVLD"        : \
-     (status) == STATUS_ERR_FRAME_FILE_EMPTY          ? "FRAME_FILE_EMPTY"               : \
-     (status) == STATUS_ERR_FRAME_BEFORE_BOD          ? "FRAME_BEFORE_BOD"               : \
-     (status) == STATUS_ERR_FRAME_AFTER_EOD           ? "FRAME_AFTER_EOD"                : \
-     (status) == STATUS_ERR_FRAME_NOT_FOUND_1         ? "FRAME_NOT_FOUND_1"              : \
-     (status) == STATUS_ERR_FRAME_NOT_FOUND_2         ? "FRAME_NOT_FOUND_2"              : \
-     (status) == STATUS_ERR_FRAME_NOT_FOUND_3         ? "FRAME_NOT_FOUND_3"              : \
-     (status) == STATUS_ERR_FRAME_NOT_FOUND_4         ? "FRAME_NOT_FOUND_4"              : \
-     (status) == STATUS_ERR_FRAME_HDR_READ            ? "FRAME_HDR_READ"                 : \
-     (status) == STATUS_ERR_FRAME_HDR_MAGIC           ? "FRAME_HDR_MAGIC"                : \
-     (status) == STATUS_ERR_FRAME_HDR_CHECKSUM        ? "FRAME_HDR_CHECKSUM"             : \
-     (status) == STATUS_ERR_FRAME_DATA_MEM_ALLOC      ? "FRAME_DATA_MEM_ALLOC"           : \
-     (status) == STATUS_ERR_FRAME_DATA_READ           ? "FRAME_DATA_READ"                : \
-     (status) == STATUS_ERR_FRAME_TIME                ? "FRAME_TIME"                     : \
-     (status) == STATUS_ERR_JPEG_DECODE               ? "JPEG_DECODE"                    : \
-     (status) == STATUS_ERR_DEAD                      ? "DEAD"                           : \
-     (status) == STATUS_ERR_WEBCAM_FAILURE            ? "WEBCAM_FAILURE"                 : \
-     (status) == STATUS_ERR_SYSTEM_CLOCK_NOT_SET      ? "SYSTEM_CLOCK_NOT_SET"           : \
-     (status) == STATUS_ERR_NO_PASSWORD               ? "NO_PASSWORD"                    : \
-     (status) == STATUS_ERR_HANDLE_TOO_BIG            ? "HANDLE_TOO_BIG"                 : \
-     (status) == STATUS_ERR_GET_SERVER_ADDR           ? "GET_SERVER_ADDR"                : \
-     (status) == STATUS_ERR_CREATE_SOCKET             ? "CREATE_SOCKET"                  : \
-     (status) == STATUS_ERR_GET_LOCAL_ADDR            ? "GET_LOCAL_ADDR"                 : \
-     (status) == STATUS_ERR_BIND_LOCAL_ADDR           ? "BIND_LOCAL_ADDR"                : \
-     (status) == STATUS_ERR_GETSOCKNAME               ? "GETSOCKNAME"                    : \
-     (status) == STATUS_ERR_SENDTO                    ? "SENDTO"                         : \
-     (status) == STATUS_ERR_RECVFROM                  ? "RECVFROM"                       : \
-     (status) == STATUS_ERR_NO_RESPONSE_FROM_SERVER   ? "NO_RESPONSE_FROM_SERVER"        : \
-     (status) == STATUS_ERR_INVALID_CONNECTION_ID     ? "INVALID_CONNECTION_ID"          : \
-     (status) == STATUS_ERR_DUPLICATE_CONNECTION_ID   ? "DUPLICATE_CONNECTION_ID"        : \
-     (status) == STATUS_ERR_TOO_MANY_CONNECTIONS      ? "TOO_MANY_CONNECTIONS"           : \
-     (status) == STATUS_ERR_CONNECTION_MEM_ALLOC      ? "CONNECTION_MEM_ALLOC"           : \
-     (status) == STATUS_ERR_NO_RESPONSE_FROM_PEER     ? "NO_RESPONSE_FROM_PEER"          : \
-     (status) == STATUS_ERR_FAILED_CONNECT_TO_SERVER  ? "FAILED_CONNECT_TO_SERVER"       : \
-     (status) == STATUS_ERR_INVLD_RESP_FROM_SERVER    ? "INVLD_RESP_FROM_SERVER"         : \
-     (status) == STATUS_ERR_PASSWORD_LENGTH           ? "PASSWORD_LENGTH"                : \
-     (status) == STATUS_ERR_PASSWORD_CHARS            ? "PASSWORD_CHARS"                 : \
-     (status) == STATUS_ERR_ACCESS_DENIED             ? "ACCESS_DENIED"                  : \
-     (status) == STATUS_ERR_INVALID_LINK              ? "INVALID_LINK"                   : \
-     (status) == STATUS_ERR_WC_DOES_NOT_EXIST         ? "WC_DOES_NOT_EXIST"              : \
-     (status) == STATUS_ERR_WC_NOT_ONLINE             ? "WC_NOT_ONLINE"                  : \
-     (status) == STATUS_ERR_WC_ADDR_NOT_AVAIL         ? "WC_ADDR_NOT_AVAIL"              : \
-     (status) == STATUS_ERR_WCNAME_CHARS              ? "WCNAME_CHARS"                   : \
-     (status) == STATUS_ERR_WCNAME_LENGTH             ? "WCNAME_LENGTH"                  : \
-     (status) == STATUS_ERR_WC_ACCESS_LIST_LENGTH     ? "ACCESS_LIST_LENGTH"             : \
-     (status) == STATUS_ERR_MUST_BE_ROOT              ? "MUST_BE_ROOT"                   : \
-     (status) == STATUS_ERR_GET_WC_ADDR               ? "GET_WC_ADDR"                    : \
-     (status) == STATUS_ERR_CONNECT_TO_WC             ? "CONNECT_TO_WC"                  : \
-     (status) == STATUS_ERR_SEND_PSSWD_TO_WC          ? "SEND_PSSWD_TO_WC"               : \
-     (status) == STATUS_ERR_RECV_PSSWD_RESP_FROM_WC   ? "RECV_PSSWD_RESP_FROM_WC"        : \
-     (status) == STATUS_ERR_INVALID_PSSWD             ? "INVALID_PSSWD"                  : \
-                                                        "????")
+   ((status) == STATUS_INFO_OK                     ? "OK"                       : \
+    (status) == STATUS_INFO_GAP                    ? "GAP"                      : \
+    (status) == STATUS_INFO_CHANGING_RESOLUTION    ? "CHANGING_RESOLUTION"      : \
+    (status) == STATUS_INFO_STOPPED                ? "STOPPED"                  : \
+    (status) == STATUS_ERR_GENERAL_FAILURE         ? "GENERAL_FAILURE"          : \
+    (status) == STATUS_ERR_GET_WC_ADDR             ? "GET_WC_ADDR"              : \
+    (status) == STATUS_ERR_CONNECT_TO_WC           ? "CONNECT_TO_WC"            : \
+    (status) == STATUS_ERR_SEND_PSSWD_TO_WC        ? "SEND_PSSWD_TO_WC"         : \
+    (status) == STATUS_ERR_RECV_PSSWD_RESP_FROM_WC ? "RECV_PASSWD_RESP_FROM_WC" : \
+    (status) == STATUS_ERR_INVALID_PSSWD           ? "INVALID_PSSWD"            : \
+    (status) == STATUS_ERR_DEAD                    ? "DEAD"                     : \
+    (status) == STATUS_ERR_JPEG_DECODE             ? "JPEG_DECODE"              : \
+    (status) == STATUS_ERR_WEBCAM_FAILURE          ? "WEBCAM_FAILURE"           : \
+    (status) == STATUS_ERR_SYSTEM_CLOCK_NOT_SET    ? "SYSTEM_CLOCK_NOT_SET"     : \
+    (status) == STATUS_ERR_FRAME_BEFORE_BOD        ? "FRAME_BEFORE_BOD"         : \
+    (status) == STATUS_ERR_FRAME_AFTER_EOD         ? "FRAME_AFTER_BOD"          : \
+    (status) == STATUS_ERR_FRAME_TIME              ? "FRAME_TIME"               : \
+    (status) == STATUS_ERR_FRAME_DATA_MEM_ALLOC    ? "FRAME_DATE_MEM_ALLOC"     : \
+    (status) == STATUS_ERR_FRAME_DATA_READ         ? "FRAME_DATE_READ"          : \
+    (status) == STATUS_ERR_FRAME_FILE_OFFSET_INVLD ? "FRAME_FILE_OFFSET_INVLD"  : \
+    (status) == STATUS_ERR_FRAME_HDR_READ          ? "FRAME_HDR_READ"           : \
+    (status) == STATUS_ERR_FRAME_HDR_MAGIC         ? "FRAME_HDR_MAGIC"          : \
+    (status) == STATUS_ERR_FRAME_HDR_CHECKSUM      ? "FRAME_HDR_CHECKSUM"       : \
+    (status) == STATUS_ERR_FRAME_FILE_EMPTY        ? "FRAME_FILE_EMTPY"         : \
+    (status) == STATUS_ERR_FRAME_NOT_FOUND_1       ? "FRAME_NOT_FOUND_1"        : \
+    (status) == STATUS_ERR_FRAME_NOT_FOUND_2       ? "FRAME_NOT_FOUND_2"        : \
+    (status) == STATUS_ERR_FRAME_NOT_FOUND_3       ? "FRAME_NOT_FOUND_3"        : \
+    (status) == STATUS_ERR_FRAME_NOT_FOUND_4       ? "FRAME_NOT_FOUND_4"        : \
+                                                     "????")
 
 // mode values
 #define MODE_NONE      0
@@ -282,7 +219,12 @@ typedef struct {
 } webcam_msg_t;
 #pragma pack(pop)
 
-// -----------------  JPEG_DECODE  ---------------------------------------------------
+// -----------------  WEBCAM SERVER  ---------------------------------------------------
+
+int wc_svc_webcam_init(void);
+void * wc_svc_webcam(void * cx);
+
+// -----------------  JPEG DECODE  ---------------------------------------------------
 
 #define JPEG_DECODE_MODE_GS    1
 #define JPEG_DECODE_MODE_YUY2  2

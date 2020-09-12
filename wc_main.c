@@ -18,9 +18,6 @@ static int debug_mode;
 // prototypes
 //
 
-int wc_svc_webcam_init(void);    // XXX these 2 lines should be in hdr file
-void * wc_svc_webcam(void * cx);
-
 // -----------------  MAIN  ---------------------------------------------------------
 
 int main(int argc, char **argv)

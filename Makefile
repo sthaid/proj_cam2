@@ -2,7 +2,7 @@ TARGETS = viewer wc_server
 
 CC = gcc
 OUTPUT_OPTION=-MMD -MP -o $@
-CFLAGS = -Wall -g -O2 -I.
+CFLAGS = -Wall -g -O2 -I. -fsigned-char
 
 viewer.o: CFLAGS += $(shell sdl2-config --cflags)
 
@@ -22,7 +22,7 @@ viewer: $(SRC_VIEWER:.c=.o)
               -o $@ $(SRC_VIEWER:.c=.o)
 
 wc_server: $(SRC_WC_SERVER:.c=.o)
-	$(CC) -lpthread -ljpeg -lusb -lm \
+	$(CC) -lpthread -ljpeg -lusb -lm -lrt \
               -o $@ $(SRC_WC_SERVER:.c=.o)
 
 -include $(DEP)
