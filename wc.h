@@ -62,17 +62,12 @@ typedef struct {
 
 // -----------------  NETWORK COMMUNICATION  -----------------------------------------
 
-typedef struct {
-    int tbd;
-} net_stats_t;
-
 int net_init(bool is_server, int server_port);
 void *net_connect(char *ipaddr, int port, char *password, int *connect_status);
 void *net_accept(void);
 void net_disconnect(void *handle);
 int net_send(void *handle, void *buff, int len);
 int net_recv(void *handle, void *buff, int len, bool non_blocking);
-void net_get_stats(void *handle, net_stats_t *stats);
 
 // -----------------  WEBCAM DEFINITIONS  ----------------------------------------------
 

@@ -403,17 +403,3 @@ int net_recv(void *handle, void *buff, int len, bool non_blocking)
     }
     return len;
 }
-
-// -----------------  GET STATS  --------------------------------------------------------
-
-void net_get_stats(void *handle, net_stats_t *stats)
-{
-    net_con_t *net_con = handle;
-
-    if (net_con == NULL) {
-        ERROR("handle is NULL\n");
-        return;
-    }
-
-    // XXX later
-}

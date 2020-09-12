@@ -1,5 +1,3 @@
-// XXX use fixed size display on linux, and lock to landscape mode on phone
-// XXX search XXX 
 // XXX review, and cleanup
 
 #include "wc.h"
@@ -14,11 +12,11 @@
 //
 
 #define MAX_WEBCAM                  4
-#define MAX_WC_DEF                  8     // care needed to change this
+#define MAX_WC_DEF                  8     // care needed when chaning this
 #define MAX_STR                     200 
 
-#define WIN_WIDTH_INITIAL           1280
-#define WIN_HEIGHT_INITIAL          800
+#define WIN_WIDTH                   1600
+#define WIN_HEIGHT                   900
 
 #define CTL_COLS                    14
 #define CTL_ROWS                    7
@@ -34,7 +32,7 @@
 #define CONFIG_DEBUG                (config[30].value[0])    // N, Y
 
 #ifndef ANDROID 
-#define SDL_FLAGS                   SDL_WINDOW_RESIZABLE
+#define SDL_FLAGS                   0   // was SDL_WINDOW_RESIZABLE
 #else
 #define SDL_FLAGS                   SDL_WINDOW_FULLSCREEN
 #endif
@@ -436,9 +434,7 @@ int main(int argc, char **argv)
     }
 
     // create SDL Window and Renderer
-    if (SDL_CreateWindowAndRenderer(WIN_WIDTH_INITIAL, WIN_HEIGHT_INITIAL, 
-                                    SDL_FLAGS, &window, &renderer) != 0) 
-    {
+    if (SDL_CreateWindowAndRenderer(WIN_WIDTH, WIN_HEIGHT, SDL_FLAGS, &window, &renderer) != 0) {
         FATAL("SDL_CreateWindowAndRenderer failed\n");
     }
     SDL_GetWindowSize(window, &win_width, &win_height);
@@ -773,7 +769,7 @@ void display_handler(void)
             }
 
         } else if (event.mouse_event == MOUSE_EVENT_STATUS_SELECT) {
-            status_select = (status_select + 1) % 5;
+            status_select = (status_select + 1) % 4;
 
         } else if (event.mouse_event == MOUSE_EVENT_PLAYBACK_STOP) {
             SET_CTL_MODE_PLAYBACK_STOP(false);
@@ -1550,7 +1546,7 @@ void display_handler(void)
                     if (webcam[i].state == STATE_CONNECTED) {
                         sprintf(static_str[i], "%c %0.1f", 
                                 'A'+i,
-                                (double)(webcam[i].recvd_frames - last_recvd_frames[i]) * 1000000 / delta_us);
+                                (webcam[i].recvd_frames - last_recvd_frames[i]) / (delta_us / 1000000.));
                     } else {
                         sprintf(static_str[i], "%c not conn", 'A'+i);
                     }
@@ -1570,7 +1566,7 @@ void display_handler(void)
             render_text(&ctlbpane, 0, 0, "TOTAL MB", MOUSE_EVENT_STATUS_SELECT);
             for (i = 0; i < MAX_WEBCAM; i++) {
                 if (webcam[i].state == STATE_CONNECTED) {
-                    sprintf(str, "%c %d", 'A'+i, (int)(webcam[i].recvd_bytes/1000000));
+                    sprintf(str, "%c %0.3f", 'A'+i, (webcam[i].recvd_bytes / 1000000.));
                 } else {
                     sprintf(str, "%c not conn", 'A'+i);
                 }
@@ -1578,19 +1574,7 @@ void display_handler(void)
             }
             break; }
 
-        case 2: {  // NETWORK
-            render_text(&ctlbpane, 0, 0, "NETWORK", MOUSE_EVENT_STATUS_SELECT);
-            for (i = 0; i < MAX_WEBCAM; i++) {
-                if (webcam[i].state == STATE_CONNECTED) {
-                    sprintf(str, "%c", 'A'+i);  // XXX later
-                } else {
-                    sprintf(str, "%c not conn", 'A'+i);
-                }
-                render_text(&ctlbpane, i+1, 0, str, MOUSE_EVENT_NONE);
-            }
-            break; }
-
-        case 3: { // REC DURATION
+        case 2: { // REC DURATION
             render_text(&ctlbpane, 0, 0, "REC DURATION", MOUSE_EVENT_STATUS_SELECT);
             for (i = 0; i < MAX_WEBCAM; i++) {
                 uint32_t days, hours, minutes, seconds;
@@ -1606,7 +1590,7 @@ void display_handler(void)
             }
             break; }
 
-        case 4: { // VERSION N.N
+        case 3: { // VERSION N.N
             sprintf(str, "VERSION %d.%d", VERSION_MAJOR, VERSION_MINOR);
             render_text(&ctlbpane, 0, 0, str, MOUSE_EVENT_STATUS_SELECT);
             for (i = 0; i < MAX_WEBCAM; i++) {
@@ -1814,9 +1798,6 @@ void * webcam_thread(void * cx)
     pthread_mutex_init(&wc->image_mutex,NULL);
     wc->state = STATE_NOT_CONNECTED;
     wc->change_name_request = CONFIG_WC_SELECT(id)[0]-'0';
-
-    // XXX comment
-    DISPLAY_WC_NAME(wc->name);
 
     // acknowledge that this thread has completed initialization
     __sync_fetch_and_add(&webcam_threads_running_count,1);

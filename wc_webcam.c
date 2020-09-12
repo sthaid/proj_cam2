@@ -349,9 +349,6 @@ void * wc_svc_webcam(void * cx)
         //
 
         if (microsec_timer() - last_status_msg_send_time_us > 1000000) {
-            net_stats_t net_stats;
-
-            net_get_stats(handle, &net_stats);  // XXX not used yet
             msg.msg_type = MSG_TYPE_STATUS;
             msg.u.mt_status.version         = VERSION;
             msg.u.mt_status.cam_status      = cam_status;
