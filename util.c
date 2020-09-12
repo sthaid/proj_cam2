@@ -2,7 +2,6 @@
 
 // -----------------  CONFIG READ / WRITE  -------------------------------
 
-// XXX this should check for array bound
 int config_read(char * config_path, config_t * config, int config_version)
 {
     FILE * fp;
@@ -45,9 +44,6 @@ int config_read(char * config_path, config_t * config, int config_version)
         while (*value == ' ' && *value != '\0') {
             value++;
         }
-
-        // XXX del
-        INFO("name='%s' value='%s'\n", name, value);
 
         // search the config array for a matching name;
         // if found, save the new value associated with the name
@@ -569,7 +565,6 @@ void init_system_clock_offset_using_sntp(void)
     }
 
     // loop over the list of candidate ntp servers
-    // XXX should use an average
     for (i = 0; i < MAX_SERVER_LIST; i++) {
         char * server_name = server_name_list[i];
 

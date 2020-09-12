@@ -84,6 +84,7 @@ int net_recv(void *handle, void *buff, int len, bool non_blocking);
 #define RP_MAX_FRAME_DATA_LEN   500000
 
 // status values
+// XXX which are not needed
 #define STATUS_INFO_OK                       0
 #define STATUS_INFO_STOPPED                  1
 #define STATUS_INFO_GAP                      2
@@ -138,6 +139,11 @@ int net_recv(void *handle, void *buff, int len, bool non_blocking);
 #define STATUS_ERR_WCNAME_LENGTH             151
 #define STATUS_ERR_WC_ACCESS_LIST_LENGTH     152
 #define STATUS_ERR_MUST_BE_ROOT              153
+#define STATUS_ERR_GET_WC_ADDR               154
+#define STATUS_ERR_CONNECT_TO_WC             155
+#define STATUS_ERR_SEND_PSSWD_TO_WC          156
+#define STATUS_ERR_RECV_PSSWD_RESP_FROM_WC   157
+#define STATUS_ERR_INVALID_PSSWD             158
 
 #define STATUS_STR(status) \
     ((status) == STATUS_INFO_OK                       ? "OK"                             : \
@@ -194,6 +200,11 @@ int net_recv(void *handle, void *buff, int len, bool non_blocking);
      (status) == STATUS_ERR_WCNAME_LENGTH             ? "WCNAME_LENGTH"                  : \
      (status) == STATUS_ERR_WC_ACCESS_LIST_LENGTH     ? "ACCESS_LIST_LENGTH"             : \
      (status) == STATUS_ERR_MUST_BE_ROOT              ? "MUST_BE_ROOT"                   : \
+     (status) == STATUS_ERR_GET_WC_ADDR               ? "GET_WC_ADDR"                    : \
+     (status) == STATUS_ERR_CONNECT_TO_WC             ? "CONNECT_TO_WC"                  : \
+     (status) == STATUS_ERR_SEND_PSSWD_TO_WC          ? "SEND_PSSWD_TO_WC"               : \
+     (status) == STATUS_ERR_RECV_PSSWD_RESP_FROM_WC   ? "RECV_PSSWD_RESP_FROM_WC"        : \
+     (status) == STATUS_ERR_INVALID_PSSWD             ? "INVALID_PSSWD"                  : \
                                                         "????")
 
 // mode values

@@ -1,11 +1,15 @@
-TARGETS = wc_server viewer 
+TARGETS = viewer wc_server
 
 CC = gcc
-CFLAGS = -c -g -O2 -pthread -fsigned-char -Wall 
-SDLCFLAGS = $(shell sdl2-config --cflags)
+OUTPUT_OPTION=-MMD -MP -o $@
+CFLAGS = -Wall -g -O2 -I.
 
-WC_SERVER_OBJS = wc_main.o wc_webcam.o net.c util.o jpeg_decode.o temper.o
-VIEWER_OBJS    = viewer.o net.c util.o jpeg_decode.o
+viewer.o: CFLAGS += $(shell sdl2-config --cflags)
+
+SRC_VIEWER    = viewer.c net.c util.c jpeg_decode.c
+SRC_WC_SERVER = wc_main.c wc_webcam.c net.c util.c jpeg_decode.c temper.c
+
+DEP = $(SRC_VIEWER:.c=.d) $(SRC_WC_SERVER:.c=.d)
 
 #
 # build rules
@@ -13,32 +17,19 @@ VIEWER_OBJS    = viewer.o net.c util.o jpeg_decode.o
 
 all: $(TARGETS)
 
-wc_server: $(WC_SERVER_OBJS) 
-	$(CC) -pthread -lrt -ljpeg -lreadline -lusb -lm -o $@ $(WC_SERVER_OBJS)
+viewer: $(SRC_VIEWER:.c=.o)
+	$(CC) -lpthread -ljpeg -lSDL2 -lSDL2_ttf -lSDL2_mixer \
+              -o $@ $(SRC_VIEWER:.c=.o)
 
-viewer: $(VIEWER_OBJS) 
-	$(CC) -pthread -lrt -ljpeg -lSDL2 -lSDL2_ttf -lSDL2_mixer -lreadline -o $@ $(VIEWER_OBJS)
+wc_server: $(SRC_WC_SERVER:.c=.o)
+	$(CC) -lpthread -ljpeg -lusb -lm \
+              -o $@ $(SRC_WC_SERVER:.c=.o)
+
+-include $(DEP)
 
 #
 # clean rule
 #
 
 clean:
-	rm -f $(TARGETS) *.o
-
-#
-# compile rules
-#
-
-wc_main.o:       wc_main.c wc.h
-wc_webcam.o:     wc_webcam.c wc.h
-util.o:          util.c wc.h
-jpeg_decode.o:   jpeg_decode.c wc.h
-temper.o:        temper.c wc.h
-net.o:           net.c wc.h
-
-viewer.o: viewer.c wc.h
-	$(CC) $(CFLAGS) $(SDLCFLAGS) $< -o $@
-
-.c.o: 
-	$(CC) $(CFLAGS) $< -o $@
+	rm -f $(TARGETS) $(DEP) $(DEP:.d=.o)

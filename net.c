@@ -37,9 +37,8 @@ static char *sprintf_sockopts(int sfd, char *s, int slen);
 
 int net_init(bool is_server, int server_port)
 {
-    int                optval, sd;
+    int                optval;
     struct sockaddr_in addr;
-    socklen_t          addrlen;
 
     // if not being called by the server then return
     if (!is_server) {
@@ -83,9 +82,9 @@ void *net_connect(char *ipaddr, int port, char *password, int *connect_status)
     int                rc, sd = -1;
     net_con_t         *net_con = NULL;
     struct sockaddr_in sin;
-    char               str[100];
+    char               str[100] __attribute__((unused));
 
-    // xxx comment, and set in other paths
+    // preset connect_status return value to 'failure'
     *connect_status = STATUS_ERR_GENERAL_FAILURE;
 
     // create socket
@@ -97,11 +96,13 @@ void *net_connect(char *ipaddr, int port, char *password, int *connect_status)
     // connect to the server 
     rc = getsockaddr(ipaddr, port, SOCK_STREAM, IPPROTO_TCP, &sin);
     if (rc != 0) {
+        *connect_status = STATUS_ERR_GET_WC_ADDR;
         ERROR("getsockaddr %s:%d failed, %s\n", ipaddr, port, strerror(errno));
         goto error_ret;
     }
     rc = connect(sd, (struct sockaddr *)&sin, sizeof(sin));
     if (rc < 0) {
+        *connect_status = STATUS_ERR_CONNECT_TO_WC;
         ERROR("connect %s:%d failed, %s\n", ipaddr, port, strerror(errno));
         goto error_ret;
     }
@@ -111,7 +112,7 @@ void *net_connect(char *ipaddr, int port, char *password, int *connect_status)
     net_con = calloc(1, sizeof(net_con_t));
     net_con->sd = sd;
     set_sockopts(net_con);
-    INFO("sd=%d opts=%s\n", sd, sprintf_sockopts(sd, str, sizeof(str))); //xxx check this and change to DEBUG
+    DEBUG("sd=%d opts=%s\n", sd, sprintf_sockopts(sd, str, sizeof(str)));
 
     // send the password, and
     // wait for ack that the password was okay
@@ -120,16 +121,18 @@ void *net_connect(char *ipaddr, int port, char *password, int *connect_status)
     memset(password_buff, 0, sizeof(password_buff));
     strcpy(password_buff, password);
     if (net_send(net_con, password_buff, sizeof(password_buff)) < 0) {
+        *connect_status = STATUS_ERR_SEND_PSSWD_TO_WC;
         ERROR("send password check %s:%d failed, %s\n", ipaddr, port, strerror(errno));
         goto error_ret;
     }
     if (net_recv(net_con, &status_buff, sizeof(status_buff), false) < 0) {
+        *connect_status = STATUS_ERR_RECV_PSSWD_RESP_FROM_WC;
         ERROR("recv password status %s:%d failed, %s\n", ipaddr, port, strerror(errno));
         goto error_ret;
     }
     if (status_buff != MAGIC_PASSWORD_OKAY) {
+        *connect_status = STATUS_ERR_INVALID_PSSWD;
         ERROR("recv password status %s:%d password is invalid\n", ipaddr, port);
-        *connect_status = STATUS_INFO_GAP; //xxx
         goto error_ret;
     }
 
@@ -272,10 +275,10 @@ static char *sprintf_sockopts(int sfd, char *s, int slen)
     getsockopt(sfd, SOL_SOCKET, SO_RCVBUF,    &rcvbuf   , &rcvbuf_len);
     getsockopt(sfd, SOL_SOCKET, SO_RCVTIMEO,  &rcvto,     &rcvto_len);
     getsockopt(sfd, SOL_SOCKET, SO_SNDTIMEO,  &sndto,     &sndto_len);
-    snprintf(s, slen, "REUSEADDR=%d SNDBUF=%d RCVBUF=%d RCVTIMEO=%d SNDTIMEO", 
+    snprintf(s, slen, "REUSEADDR=%d SNDBUF=%d RCVBUF=%d RCVTIMEO=%0.3f secs SNDTIMEO=%0.3f secs", 
              reuseaddr, sndbuf, rcvbuf,
-             (int)(rcvto.tv_sec+1000000*rcvto.tv_usec),
-             (int)(sndto.tv_sec+1000000*sndto.tv_usec));
+             rcvto.tv_sec + rcvto.tv_usec/1000000.,
+             sndto.tv_sec + sndto.tv_usec/1000000.);
     return s;
 }
 
@@ -315,8 +318,13 @@ int net_send(void *handle, void *buff, int len)
     return len;
 }
 
-// XXX more comments on non blocking recv
-
+// When called with non_blocking=true the caller must provide the same
+// recv buffer and length on each call. The reason is that data may be
+// partially recvd on a given call, and placed in the caller's recv buffer;
+// on a subsequent call the remainder of the data will be also placed in
+// the recv buffer, and when the recv buffer has len bytes then the 
+// this routine will return success.
+//
 // return:
 // - len: success
 // - 0:   when non-blocking is requested, and len bytes are not available
