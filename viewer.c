@@ -1,5 +1,3 @@
-// XXX review, and cleanup
-
 #include "wc.h"
 #include "button_sound.h"
 
@@ -1994,7 +1992,8 @@ void * webcam_thread(void * cx)
             }
 
             // receive msg header  
-            ret = net_recv(handle, &msg, sizeof(msg), true);
+            // - use NON_BLOCKING_WITH_TIMEOUT because a periodic status msg shold be rcvd
+            ret = net_recv(handle, &msg, sizeof(msg), NON_BLOCKING_WITH_TIMEOUT);
             if (ret == -1) {
                 // error
                 STATE_CHANGE(STATE_CONNECTED_ERROR, "ERROR", "recv msg hdr", "");
@@ -2022,7 +2021,7 @@ void * webcam_thread(void * cx)
 
                 // receive msg data  
                 if (data_len > 0) {
-                    ret = net_recv(handle, data, data_len, false);
+                    ret = net_recv(handle, data, data_len, BLOCKING_WITH_TIMEOUT);
                     if (ret < 0) {
                         STATE_CHANGE(STATE_CONNECTED_ERROR, "ERROR", "recv msg data", "");
                         break;

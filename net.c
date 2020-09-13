@@ -14,10 +14,11 @@
 //
 
 typedef struct {
-    int   sd;
-    void *nb_recv_buff;
-    int   nb_recv_len;
-    int   nb_recv_xfered;
+    int      sd;
+    void    *nb_recv_buff;
+    int      nb_recv_len;
+    int      nb_recv_xfered;
+    uint64_t nb_recv_tout;
 } net_con_t;
 
 //
@@ -125,7 +126,7 @@ void *net_connect(char *ipaddr, int port, char *password, int *connect_status)
         ERROR("send password check %s:%d failed, %s\n", ipaddr, port, strerror(errno));
         goto error_ret;
     }
-    if (net_recv(net_con, &status_buff, sizeof(status_buff), false) < 0) {
+    if (net_recv(net_con, &status_buff, sizeof(status_buff), BLOCKING_WITH_TIMEOUT) < 0) {
         *connect_status = STATUS_ERR_RECV_PSSWD_RESP_FROM_WC;
         ERROR("recv password status %s:%d failed, %s\n", ipaddr, port, strerror(errno));
         goto error_ret;
@@ -200,7 +201,7 @@ void *net_accept(void)
 
     // recv the password, and validate;
     // send ack/nak
-    if (net_recv(net_con, &password_rcvd, sizeof(password_rcvd), false) < 0) {
+    if (net_recv(net_con, &password_rcvd, sizeof(password_rcvd), BLOCKING_WITH_TIMEOUT) < 0) {
         ERROR("recv password %s failed, %s\n", from_str, strerror(errno));
         goto error_ret;
     }
@@ -325,11 +326,16 @@ int net_send(void *handle, void *buff, int len)
 // the recv buffer, and when the recv buffer has len bytes then the 
 // this routine will return success.
 //
+// mode can be one of the following:
+//  BLOCKING_WITH_TIMEOUT
+//  NON_BLOCKING_WITH_TIMEOUT
+//  NON_BLOCKING_NO_TIMEOUT
+//
 // return:
 // - len: success
 // - 0:   when non-blocking is requested, and len bytes are not available
-// - -1:  error
-int net_recv(void *handle, void *buff, int len, bool non_blocking)
+// - -1:  timeout or some other error
+int net_recv(void *handle, void *buff, int len, int mode)
 {
     int        ret;
     uint64_t   start_us;
@@ -343,21 +349,17 @@ int net_recv(void *handle, void *buff, int len, bool non_blocking)
     }
 
     // sanity checks
-    if (non_blocking == true && net_con->nb_recv_buff != NULL) {
+    if (mode != BLOCKING_WITH_TIMEOUT && net_con->nb_recv_buff != NULL) {
         if (buff != net_con->nb_recv_buff || len != net_con->nb_recv_len) {
-            FATAL("non_blocking invalid buff or len\n");
+            FATAL("mode is non_blocking - invalid buff or len\n");
         }
     }
-    if (non_blocking == false && net_con->nb_recv_buff != NULL) {
-        FATAL("blocking call made when non_blocking buff is set\n");
+    if (mode == BLOCKING_WITH_TIMEOUT && net_con->nb_recv_buff != NULL) {
+        FATAL("mode is blocking - call made when nb_recv_buff is set\n");
     }
 
-    // XXX tout for non blocking
-    // - the viewer should be receiving a status msg once per sec, so it could have a tout
-    // - the wc does not recv a periodic msg, so no tout for it
-
     // check for, and handle non_blocking recv request
-    if (non_blocking) {
+    if (mode != BLOCKING_WITH_TIMEOUT) {
         // if a non blocking read was not in progress then
         // remember the caller's buff and len because the following 
         // call to recv may just just return a partially filled buffer
@@ -365,6 +367,19 @@ int net_recv(void *handle, void *buff, int len, bool non_blocking)
             net_con->nb_recv_buff   = buff;
             net_con->nb_recv_len    = len;
             net_con->nb_recv_xfered = 0;
+            net_con->nb_recv_tout   = (mode == NON_BLOCKING_WITH_TIMEOUT 
+                                       ? microsec_timer() + TIMEOUT_US
+                                       : 0);
+        }
+
+        // if nonblocking recv has a timeout and the timout has expired then
+        // return error
+        if (net_con->nb_recv_tout != 0 && microsec_timer() > net_con->nb_recv_tout) {
+            net_con->nb_recv_buff   = NULL;
+            net_con->nb_recv_len    = 0;
+            net_con->nb_recv_xfered = 0;
+            net_con->nb_recv_tout   = 0;
+            return -1;  
         }
 
         // recv the data, return
@@ -383,6 +398,7 @@ int net_recv(void *handle, void *buff, int len, bool non_blocking)
                 net_con->nb_recv_buff   = NULL;
                 net_con->nb_recv_len    = 0;
                 net_con->nb_recv_xfered = 0;
+                net_con->nb_recv_tout   = 0;
                 return len;
             } else {
                 return 0;

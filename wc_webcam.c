@@ -290,9 +290,11 @@ void * wc_svc_webcam(void * cx)
 
         //
         // perform non-blocking recv to get client command
+        // - NON_BLOCKING_NO_TIMEOUT is used because there are no periodic messages
+        //   being sent to the wc_server
         //
 
-        ret = net_recv(handle, &msg, sizeof(msg), true);
+        ret = net_recv(handle, &msg, sizeof(msg), NON_BLOCKING_NO_TIMEOUT);
         if (ret < 0) {
             ERROR("net_recv failed\n");
             goto done;

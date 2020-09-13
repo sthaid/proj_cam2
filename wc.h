@@ -62,12 +62,18 @@ typedef struct {
 
 // -----------------  NETWORK COMMUNICATION  -----------------------------------------
 
+// defines used for net_recv mode param
+#define BLOCKING_WITH_TIMEOUT       0
+#define NON_BLOCKING_WITH_TIMEOUT   1
+#define NON_BLOCKING_NO_TIMEOUT     2
+
+
 int net_init(bool is_server, int server_port);
 void *net_connect(char *ipaddr, int port, char *password, int *connect_status);
 void *net_accept(void);
 void net_disconnect(void *handle);
 int net_send(void *handle, void *buff, int len);
-int net_recv(void *handle, void *buff, int len, bool non_blocking);
+int net_recv(void *handle, void *buff, int len, int mode);
 
 // -----------------  WEBCAM COMMON DEFINITIONS  ---------------------------------------
 
