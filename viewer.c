@@ -1,9 +1,23 @@
 #include "wc.h"
-#include "button_sound.h"
 
 #include <SDL.h>
 #include <SDL_ttf.h>
-#include <SDL_mixer.h>
+
+//
+// button sound option definitions
+//
+
+#ifdef ENABLE_BUTTON_SOUND
+    #include <SDL_mixer.h>
+    #include "button_sound.h"
+    #define PLAY_BUTTON_SOUND() \
+        do { \
+            Mix_PlayChannel(-1, button_sound, 0); \
+        } while (0)
+    Mix_Chunk * button_sound;
+#else
+    #define PLAY_BUTTON_SOUND()
+#endif
 
 //
 // defines 
@@ -204,11 +218,6 @@
         mode.mode_id++; \
     } while (0)
 
-#define PLAY_BUTTON_SOUND() \
-    do { \
-        Mix_PlayChannel(-1, button_sound, 0); \
-    } while (0)
-
 #define CONFIG_WRITE() \
     do { \
         config_write(config_path, config, config_version); \
@@ -305,8 +314,6 @@ bool             win_minimized;
 
 font_t           font[MAX_FONT];
 
-Mix_Chunk      * button_sound;
-
 webcam_t         webcam[MAX_WEBCAM];
 
 event_t          event;
@@ -382,7 +389,6 @@ int main(int argc, char **argv)
     win_height = 0;
     win_minimized = false;
     bzero(font, sizeof(font));
-    button_sound = NULL;
     bzero(webcam, sizeof(webcam));
     bzero(&event, sizeof(event));
 
@@ -438,6 +444,7 @@ int main(int argc, char **argv)
     SDL_GetWindowSize(window, &win_width, &win_height);
     INFO("win_width=%d win_height=%d\n", win_width, win_height);
 
+#ifdef ENABLE_BUTTON_SOUND
     // init button_sound
     if (Mix_OpenAudio( 22050, MIX_DEFAULT_FORMAT, 2, 4096) < 0) {
         FATAL("Mix_OpenAudio failed\n");
@@ -447,6 +454,7 @@ int main(int argc, char **argv)
     if (button_sound == NULL) {
         FATAL("Mix_QuickLoadWAV failed\n");
     }
+#endif
 
     // initialize True Type Font
     if (TTF_Init() < 0) {
@@ -499,8 +507,10 @@ int main(int argc, char **argv)
     }
 
     // cleanup
+#ifdef ENABLE_BUTTON_SOUND
     Mix_FreeChunk(button_sound);
     Mix_CloseAudio();
+#endif
 
     for (i = 0; i < MAX_FONT; i++) {
         TTF_CloseFont(font[i].font);
