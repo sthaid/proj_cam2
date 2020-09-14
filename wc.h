@@ -165,18 +165,18 @@ int net_recv(void *handle, void *buff, int len, int mode);
 #define PB_SUBMODE_PAUSE 1
 #define PB_SUBMODE_PLAY  2
 #define PB_SUBMODE_STR(psm) \
-    ((psm) == PB_SUBMODE_STOP  ? "STOPPED" : \
-     (psm) == PB_SUBMODE_PAUSE ? "PAUSED"  : \
-     (psm) == PB_SUBMODE_PLAY  ? "PLAYING" : \
+    ((psm) == PB_SUBMODE_STOP  ? "STOP " : \
+     (psm) == PB_SUBMODE_PAUSE ? "PAUSE"  : \
+     (psm) == PB_SUBMODE_PLAY  ? "PLAY " : \
                                  "????")
 
 // pb_dir values
 #define PB_DIR_FWD  0
 #define PB_DIR_REV  1
 #define PB_DIR_STR(dir) \
-    ((dir) == PB_DIR_FWD  ? "FWD"  : \
-     (dir) == PB_DIR_REV  ? "REV"  : \
-                            "????")
+    ((dir) == PB_DIR_FWD  ? "F"  : \
+     (dir) == PB_DIR_REV  ? "R"  : \
+                            "?")
 
 // macro to get the real time when in PB_SUBMODE_PLAY
 #define PB_SUBMODE_PLAY_REAL_TIME_US(m) \

@@ -27,9 +27,6 @@
 #define MAX_WC_DEF                  8     // care needed when chaning this
 #define MAX_STR                     200 
 
-#define WIN_WIDTH                   1600
-#define WIN_HEIGHT                   900
-
 #define CTL_COLS                    14
 #define CTL_ROWS                    7
 #define KEYBD_STR_COLS              14
@@ -44,25 +41,25 @@
 #define CONFIG_DEBUG                (config[30].value[0])    // N, Y
 
 #ifndef ANDROID 
-#define SDL_FLAGS                   0   // was SDL_WINDOW_RESIZABLE
+#define WIN_WIDTH                   1700
+#define WIN_HEIGHT                  900
+#define SDL_FLAGS                   SDL_WINDOW_RESIZABLE
 #else
-#define SDL_FLAGS                   SDL_WINDOW_FULLSCREEN
+#define WIN_WIDTH                   2000   // the width/height should be ignored by SDL
+#define WIN_HEIGHT                  1000   // because fullscreen requested
+#define SDL_FLAGS                   SDL_WINDOW_FULLSCREEN_DESKTOP
 #endif
 
-#define MAX_FONT                    2
-#define PANE_COLS(p,fid)            ((p)->w / font[fid].char_width)
-#define PANE_ROWS(p,fid)            ((p)->h / font[fid].char_height)
 #ifndef ANDROID
-#define FONT0_PATH                   "/usr/share/fonts/gnu-free/FreeMonoBold.ttf"
-#define FONT0_PTSIZE                 40
-#define FONT1_PATH                   "/usr/share/fonts/gnu-free/FreeMonoBold.ttf"
-#define FONT1_PTSIZE                 48
+#define FONT_PATH                    "/usr/share/fonts/gnu-free/FreeMonoBold.ttf"
+#define FONT_PTSIZE                  70
 #else
-#define FONT0_PATH                   "/system/fonts/DroidSansMono.ttf"
-#define FONT0_PTSIZE                 40
-#define FONT1_PATH                   "/system/fonts/DroidSansMono.ttf"
-#define FONT1_PTSIZE                 48 
+#define FONT_PATH                    "/system/fonts/DroidSansMono.ttf"
+#define FONT_PTSIZE                  70
 #endif
+
+#define PANE_COLS(p)                 ((double)(p)->w / font.char_width)
+#define PANE_ROWS(p)                 ((double)(p)->h / font.char_height)
 
 #define MAX_MOUSE_EVENT                       300
 #define MOUSE_EVENT_NONE                      0   // no event
@@ -312,7 +309,7 @@ int              win_width;
 int              win_height;
 bool             win_minimized;
 
-font_t           font[MAX_FONT];
+font_t           font;
 
 webcam_t         webcam[MAX_WEBCAM];
 
@@ -320,7 +317,7 @@ event_t          event;
 
 char             config_path[MAX_STR];
 const int        config_version = 21;
-config_t         config[] = { { "wc_define_0",  "test1 router-ext-ip 9991 secret" },
+config_t         config[] = { { "wc_define_0",  "test1 73.114.235.71 9991 secret" },
                               { "wc_define_1",  "test2 192.168.1.121 9990 secret" },
                               { "wc_define_2",  "none" },
                               { "wc_define_3",  "none" },
@@ -359,7 +356,8 @@ config_t         config[] = { { "wc_define_0",  "test1 router-ext-ip 9991 secret
 
 void display_handler(void);
 void render_text(SDL_Rect * pane, double row, double col, char * str, int mouse_event);
-void render_text_ex(SDL_Rect * pane, double row, double col, char * str, int mouse_event, int field_cols, bool center, int font_id);
+void render_text_ex(SDL_Rect * pane, double row, double col, char * str, int mouse_event, 
+                    int field_cols, bool center);
 void * webcam_thread(void * cx);
 
 // -----------------  MAIN  ----------------------------------------------
@@ -388,7 +386,7 @@ int main(int argc, char **argv)
     win_width = 0;
     win_height = 0;
     win_minimized = false;
-    bzero(font, sizeof(font));
+    bzero(&font, sizeof(font));
     bzero(webcam, sizeof(webcam));
     bzero(&event, sizeof(event));
 
@@ -460,16 +458,11 @@ int main(int argc, char **argv)
     if (TTF_Init() < 0) {
         FATAL("TTF_Init failed\n");
     }
-    font[0].font = TTF_OpenFont(FONT0_PATH, FONT0_PTSIZE);
-    if (font[0].font == NULL) {
-        FATAL("failed TTF_OpenFont %s\n", FONT0_PATH);
+    font.font = TTF_OpenFont(FONT_PATH, FONT_PTSIZE);
+    if (font.font == NULL) {
+        FATAL("failed TTF_OpenFont %s\n", FONT_PATH);
     }
-    TTF_SizeText(font[0].font, "X", &font[0].char_width, &font[0].char_height);
-    font[1].font = TTF_OpenFont(FONT1_PATH, FONT1_PTSIZE);
-    if (font[1].font == NULL) {
-        FATAL("failed TTF_OpenFont %s\n", FONT1_PATH);
-    }
-    TTF_SizeText(font[1].font, "X", &font[1].char_width, &font[1].char_height);
+    TTF_SizeText(font.font, "X", &font.char_width, &font.char_height);
 
     // create webcam threads 
     for (i = 0; i < MAX_WEBCAM; i++) {
@@ -494,9 +487,6 @@ int main(int argc, char **argv)
 
     // program is exitting ...
 
-    // short delay to ensure time for the button click to be generated, when exitting
-    usleep(500*MS);
-
     // wait for up to 3 second for the webcam threads to terminate
     count = 0;
     while (webcam_threads_running_count != 0 && count++ < 3000/10) {
@@ -512,9 +502,7 @@ int main(int argc, char **argv)
     Mix_CloseAudio();
 #endif
 
-    for (i = 0; i < MAX_FONT; i++) {
-        TTF_CloseFont(font[i].font);
-    }
+    TTF_CloseFont(font.font);
     TTF_Quit();
 
     SDL_PumpEvents();  // helps on Android when terminating via return
@@ -1144,14 +1132,14 @@ void display_handler(void)
     // --------------------------------------------
     bzero(event.mouse_event_pos, sizeof(event.mouse_event_pos));
 
-    #define CTL_WIDTH  (CTL_COLS * font[0].char_width)
+    #define CTL_WIDTH  (CTL_COLS * font.char_width)
 
     INIT_POS(ctlpane, 
              win_width-CTL_WIDTH, 0,     // x, y
              CTL_WIDTH, win_height);     // w, h
     INIT_POS(ctlbpane, 
-             win_width-CTL_WIDTH, win_height-CTL_ROWS*font[0].char_height,
-             CTL_WIDTH, CTL_ROWS*font[0].char_height);
+             win_width-CTL_WIDTH, win_height-CTL_ROWS*font.char_height,
+             CTL_WIDTH, CTL_ROWS*font.char_height);
     INIT_POS(configpane,
              0, 0,
              win_width, win_height);
@@ -1189,10 +1177,10 @@ void display_handler(void)
                  wc_w, wc_h);
         INIT_POS(wctitlepane[i],
                  wc_x + 1, wc_y + 1,
-                 wc_w - 2, font[0].char_height);
+                 wc_w - 2, font.char_height);
         INIT_POS(wcimagepane[i],
-                 wc_x + 1, wc_y + 2 + font[0].char_height,
-                 wc_w - 2, wc_h - font[0].char_height - 3);
+                 wc_x + 1, wc_y + 2 + font.char_height,
+                 wc_w - 2, wc_h - font.char_height - 3);
     }
 
     // ---------------------------------
@@ -1219,8 +1207,8 @@ void display_handler(void)
                 }
             }
 
-            int r = PANE_ROWS(&configpane,0);
-            int c = PANE_COLS(&configpane,0);
+            double r = PANE_ROWS(&configpane);
+            double c = PANE_COLS(&configpane);
             render_text(&configpane, r-1, c-15, "ACCEPT", MOUSE_EVENT_CONFIG_ACCEPT);
             render_text(&configpane, r-1, c-6, "CANCEL", MOUSE_EVENT_CONFIG_CANCEL);
         } else {
@@ -1237,20 +1225,20 @@ void display_handler(void)
 
             row_chars = (!config_mode.keybd_shift ? row_chars_unshift : row_chars_shift);
             r = 0;
-            c = (PANE_COLS(&configpane,1) - 33) / 2;
+            c = 2;
 
             for (i = 0; i < 4; i++) {
                 for (j = 0; row_chars[i][j] != '\0'; j++) {
                     str[0] = row_chars[i][j];
                     str[1] = '\0';
-                    render_text_ex(&configpane, r, c+3*j, str, str[0], 1, false, 1);
+                    render_text_ex(&configpane, r, c+4*j, str, str[0], 1, false);
                 }
-                r += 1.5;
+                r += 1.25;
             }
 
-            render_text_ex(&configpane, r, c+0,  "SHIFT",     MOUSE_EVENT_CONFIG_KEYBD_SHIFT, 5, false, 1);
-            render_text_ex(&configpane, r, c+10, "BACKSPACE", MOUSE_EVENT_CONFIG_KEYBD_BS,    9, false, 1);
-            r += 1.5;
+            render_text_ex(&configpane, r, c+0,  "SHIFT",     MOUSE_EVENT_CONFIG_KEYBD_SHIFT, 5, false);
+            render_text_ex(&configpane, r, c+10, "BACKSPACE", MOUSE_EVENT_CONFIG_KEYBD_BS,    9, false);
+            r += 1.25;
 
             for (i = 0; i < 4; i++) {
                 char s[MAX_STR];
@@ -1263,15 +1251,15 @@ void display_handler(void)
                         strcat(s, "_");
                     }
                 }
-                render_text_ex(&configpane, r, c, s, MOUSE_EVENT_NONE, strlen(s), false, 1);
-                r += 1.5;
+                render_text_ex(&configpane, r, c, s, MOUSE_EVENT_NONE, strlen(s), false);
+                r += 1.25;
             }
             
-            render_text_ex(&configpane, r, c, "NEXT",   MOUSE_EVENT_CONFIG_KEYBD_NEXT_STR, 4, false, 1);
-            render_text_ex(&configpane, r, c+10, "PREV",   MOUSE_EVENT_CONFIG_KEYBD_PREV_STR, 4, false, 1);
+            render_text_ex(&configpane, r, c, "NEXT",   MOUSE_EVENT_CONFIG_KEYBD_NEXT_STR, 4, false);
+            render_text_ex(&configpane, r, c+10, "PREV",   MOUSE_EVENT_CONFIG_KEYBD_PREV_STR, 4, false);
 
-            r = PANE_ROWS(&configpane,0);
-            c = PANE_COLS(&configpane,0);
+            r = PANE_ROWS(&configpane);
+            c = PANE_COLS(&configpane);
             render_text(&configpane, r-1, c-15, "ACCEPT", MOUSE_EVENT_CONFIG_KEYBD_ACCEPT);
             render_text(&configpane, r-1, c-6, "CANCEL", MOUSE_EVENT_CONFIG_KEYBD_CANCEL);
         }
@@ -1298,38 +1286,34 @@ void display_handler(void)
         }
         SDL_RenderDrawRect(renderer, &wcpane[i]);
         SDL_RenderDrawLine(renderer,
-                           wcpane[i].x, wcpane[i].y+font[0].char_height+1,
-                           wcpane[i].x+wcpane[i].w-1, wcpane[i].y+font[0].char_height+1);
+                           wcpane[i].x, wcpane[i].y+font.char_height+1,
+                           wcpane[i].x+wcpane[i].w-1, wcpane[i].y+font.char_height+1);
 
-
-        // display text line
-        if (PANE_COLS(&wctitlepane[i],0) >= 1) {
+        // display title line
+        if (PANE_COLS(&wctitlepane[i]) >= 1) {
             render_text(&wctitlepane[i], 0, 0, win_id_str, MOUSE_EVENT_NONE);
         }
 
-        if (PANE_COLS(&wctitlepane[i],0) >= 10) {
+        if (PANE_COLS(&wctitlepane[i]) >= 10) {
             render_text_ex(&wctitlepane[i], 
                         0, 2, 
                         wc->image_name, 
                         MOUSE_EVENT_WC_NAME+i,
-                        PANE_COLS(&wctitlepane[i],0) - 6, 
-                        false, 
-                        0);
+                        PANE_COLS(&wctitlepane[i]) - 6, 
+                        false);
             render_text_ex(&wctitlepane[i], 
-                        0, PANE_COLS(&wctitlepane[i],0) - 3,
+                        0, PANE_COLS(&wctitlepane[i]) - 3,
                         wc->image_res, 
                         mode.mode == MODE_LIVE ? MOUSE_EVENT_WC_RES+i : MOUSE_EVENT_NONE,
                         3,
-                        false, 
-                        0);
-        } else if (PANE_COLS(&wctitlepane[i],0) >= 3) {
+                        false);
+        } else if (PANE_COLS(&wctitlepane[i]) >= 3) {
             render_text_ex(&wctitlepane[i], 
                         0, 2, 
                         wc->image_name, 
                         MOUSE_EVENT_WC_NAME+i,
-                        PANE_COLS(&wctitlepane[i],0) - 2, 
-                        false, 
-                        0);
+                        PANE_COLS(&wctitlepane[i]) - 2, 
+                        false);
         }
 
         // display webcam_names
@@ -1389,12 +1373,11 @@ void display_handler(void)
                 DEBUG("%s is %d F\n", wc->image_name, wc->image_temperature);
                 sprintf(temper_str, "%d F", wc->image_temperature);
                 render_text_ex(&wcimagepane[i],
-                               0, 0,                          // row, col
+                               0, 0,                        // row, col
                                temper_str, 
                                MOUSE_EVENT_NONE,
-                               PANE_COLS(&wcimagepane[i],1),  // field_cols
-                               true,                         // center, 
-                               1);                            // font_id
+                               PANE_COLS(&wcimagepane[i]),  // field_cols
+                               true);                       // center, 
             }
 
             // register for the zoom event
@@ -1402,13 +1385,13 @@ void display_handler(void)
 
         // display image notification text lines
         } else {
-            int r = PANE_ROWS(&wcimagepane[i],0) / 2;
+            double r = PANE_ROWS(&wcimagepane[i]) / 2;
             render_text_ex(&wcimagepane[i], r-1, 0, wc->image_notification_str1, MOUSE_EVENT_NONE, 
-                           PANE_COLS(&wcimagepane[i],0), true, 0);
+                           PANE_COLS(&wcimagepane[i]), true);
             render_text_ex(&wcimagepane[i], r,   0, wc->image_notification_str2, MOUSE_EVENT_NONE, 
-                           PANE_COLS(&wcimagepane[i],0), true, 0);
+                           PANE_COLS(&wcimagepane[i]), true);
             render_text_ex(&wcimagepane[i], r+1, 0, wc->image_notification_str3, MOUSE_EVENT_NONE, 
-                           PANE_COLS(&wcimagepane[i],0), true, 0);
+                           PANE_COLS(&wcimagepane[i]), true);
 
             // register for the zoom event
             event.mouse_event_pos[MOUSE_EVENT_WC_ZOOM+i] = wcimagepane[i];
@@ -1436,73 +1419,76 @@ void display_handler(void)
         render_text(&ctlpane, 2, 0, str, MOUSE_EVENT_NONE);
         render_text(&ctlpane, 3, 0, str+9, MOUSE_EVENT_NONE);
     } else if (mode.mode == MODE_PLAYBACK) {
-        // Playback Mode Ctl Pane ...
+        // Playback Mode Ctl Pane example layout ...
         //
-        // 00:   PLAYBACK         --- CONTROL
-        // 01:
-        // 02:   06/07/58
-        // 03:   11:12:13
-        // 04:
-        // 05:   PLAYING         ... STATUS   (STOPPED | PAUSED)
-        // 06:   FWD  1X         ... STATUS   (REV  1X)
-        // 07:                                  STOPPED       PLAYING      PAUSED
-        // 08:   STOP    PAUSE   ... CONTROL  (PLAY PAUSE | STOP PAUSE | STOP PLAY)
-        // 09:
-        // 10:   REV     FWD
-        // 11:
-        // 12:   SLOWER  FASTER
-        // 13:   
-        // 14:   HOUR-   HOUR+
-        // 15:   
-        // 16:   MIN-    MIN+
+        // PLAYBACK
+        // 
+        // 06/07/58
+        // 11:12:13
+        // PLAY F:1X
+        //
+        // STOP    PAUSE
+        // REV     FWD
+        // SLOWER  FASTER
+        // HOUR-   HOUR+
+        // MIN-    MIN+
 
         // title
-        render_text(&ctlpane, 0, 0, "PLAYBACK", MOUSE_EVENT_MODE_SELECT);
+        double r = 0;
+        render_text(&ctlpane, r, 0, "PLAYBACK", MOUSE_EVENT_MODE_SELECT);
 
         // status: date and time
         strcpy(str, date_and_time_str);
         str[8] = '\0';
-        render_text(&ctlpane, 1.5, 0, str, MOUSE_EVENT_NONE);
-        render_text(&ctlpane, 2.5, 0, str+9, MOUSE_EVENT_NONE);
+        r += 1.4;
+        render_text(&ctlpane, r, 0, str, MOUSE_EVENT_NONE);
+        r += 1;
+        render_text(&ctlpane, r, 0, str+9, MOUSE_EVENT_NONE);
 
         // status: stop|play|pause, speed, and dir
         struct mode_s m = mode;
-        render_text(&ctlpane, 4.0, 0, PB_SUBMODE_STR(m.pb_submode), MOUSE_EVENT_NONE);
         if (m.pb_speed >= 1) {
-            sprintf(str, "%s  %.0fX", PB_DIR_STR(m.pb_dir), m.pb_speed);
+            sprintf(str, "%s %s:%.0fX", PB_SUBMODE_STR(m.pb_submode), PB_DIR_STR(m.pb_dir), m.pb_speed);
         } else {
-            sprintf(str, "%s  %.2fX", PB_DIR_STR(m.pb_dir), m.pb_speed);
+            sprintf(str, "%s %s:%.2fX", PB_SUBMODE_STR(m.pb_submode), PB_DIR_STR(m.pb_dir), m.pb_speed);
         }
-        render_text(&ctlpane, 5.0, 0, str, MOUSE_EVENT_NONE);
+
+        r += 1;
+        render_text(&ctlpane, r, 0, str, MOUSE_EVENT_NONE);
 
         // control: stop,play,pause
+        r += 1.4;
         if (m.pb_submode == PB_SUBMODE_STOP) {
-            render_text(&ctlpane, 6.5, 0, "PLAY", MOUSE_EVENT_PLAYBACK_PLAY);
-            render_text(&ctlpane, 6.5, 8, "PAUSE", MOUSE_EVENT_PLAYBACK_PAUSE);
+            render_text(&ctlpane, r, 0, "PLAY", MOUSE_EVENT_PLAYBACK_PLAY);
+            render_text(&ctlpane, r, 8, "PAUSE", MOUSE_EVENT_PLAYBACK_PAUSE);
         } else if (m.pb_submode == PB_SUBMODE_PLAY) {
-            render_text(&ctlpane, 6.5, 0, "STOP", MOUSE_EVENT_PLAYBACK_STOP);
-            render_text(&ctlpane, 6.5, 8, "PAUSE", MOUSE_EVENT_PLAYBACK_PAUSE);
+            render_text(&ctlpane, r, 0, "STOP", MOUSE_EVENT_PLAYBACK_STOP);
+            render_text(&ctlpane, r, 8, "PAUSE", MOUSE_EVENT_PLAYBACK_PAUSE);
         } else if (m.pb_submode == PB_SUBMODE_PAUSE) {
-            render_text(&ctlpane, 6.5, 0, "STOP", MOUSE_EVENT_PLAYBACK_STOP);
-            render_text(&ctlpane, 6.5, 8, "PLAY", MOUSE_EVENT_PLAYBACK_PLAY);
+            render_text(&ctlpane, r, 0, "STOP", MOUSE_EVENT_PLAYBACK_STOP);
+            render_text(&ctlpane, r, 8, "PLAY", MOUSE_EVENT_PLAYBACK_PLAY);
         } else {
-            render_text(&ctlpane, 6.5, 0, "????", MOUSE_EVENT_NONE);
-            render_text(&ctlpane, 6.5, 8, "????", MOUSE_EVENT_NONE);
+            render_text(&ctlpane, r, 0, "????", MOUSE_EVENT_NONE);
+            render_text(&ctlpane, r, 8, "????", MOUSE_EVENT_NONE);
         }
 
         // control: fwd,rev
-        render_text(&ctlpane, 8.0, 0, "REV", MOUSE_EVENT_PLAYBACK_REVERSE);
-        render_text(&ctlpane, 8.0, 8, "FWD", MOUSE_EVENT_PLAYBACK_FORWARD);
+        r += 1.4;
+        render_text(&ctlpane, r, 0, "REV", MOUSE_EVENT_PLAYBACK_REVERSE);
+        render_text(&ctlpane, r, 8, "FWD", MOUSE_EVENT_PLAYBACK_FORWARD);
 
         // control: fast,slow
-        render_text(&ctlpane, 9.5, 0, "SLOWER", MOUSE_EVENT_PLAYBACK_SLOWER);
-        render_text(&ctlpane, 9.5, 8, "FASTER", MOUSE_EVENT_PLAYBACK_FASTER);
+        r += 1.4;
+        render_text(&ctlpane, r, 0, "SLOWER", MOUSE_EVENT_PLAYBACK_SLOWER);
+        render_text(&ctlpane, r, 8, "FASTER", MOUSE_EVENT_PLAYBACK_FASTER);
 
         // control: hour-, hour+,min-,min+
-        render_text(&ctlpane, 11.0, 0, "HOUR-", MOUSE_EVENT_PLAYBACK_HOUR_MINUS);
-        render_text(&ctlpane, 11.0, 8, "HOUR+", MOUSE_EVENT_PLAYBACK_HOUR_PLUS);
-        render_text(&ctlpane, 12.5, 0, "MIN-",  MOUSE_EVENT_PLAYBACK_MINUTE_MINUS);
-        render_text(&ctlpane, 12.5, 8, "MIN+",  MOUSE_EVENT_PLAYBACK_MINUTE_PLUS);
+        r += 1.4;
+        render_text(&ctlpane,  r, 0, "HOUR-", MOUSE_EVENT_PLAYBACK_HOUR_MINUS);
+        render_text(&ctlpane,  r, 8, "HOUR+", MOUSE_EVENT_PLAYBACK_HOUR_PLUS);
+        r += 1.4;
+        render_text(&ctlpane, r, 0, "MIN-",  MOUSE_EVENT_PLAYBACK_MINUTE_MINUS);
+        render_text(&ctlpane, r, 8, "MIN+",  MOUSE_EVENT_PLAYBACK_MINUTE_PLUS);
     }
 
     // ------------------------------------
@@ -1522,9 +1508,9 @@ void display_handler(void)
     bool okay = false;
 
     if (mode.mode == MODE_LIVE) {
-        okay = PANE_ROWS(&ctlpane,0) >= 12;
+        okay = PANE_ROWS(&ctlpane) >= 12;
     } else if (mode.mode == MODE_PLAYBACK) {
-        okay = PANE_ROWS(&ctlpane,0) >= 25;
+        okay = PANE_ROWS(&ctlpane) >= 25;
     } else {
         FATAL("mode %d invalid\n", mode.mode);
     }
@@ -1617,8 +1603,10 @@ void display_handler(void)
     }
 
     // config & quit
-    render_text(&ctlbpane, 6, 0, "CONFIG", MOUSE_EVENT_CONFIG_MODE_ENTER);
-    render_text(&ctlbpane, 6, 10, "QUIT", MOUSE_EVENT_QUIT);
+    double r = PANE_ROWS(&ctlbpane);
+    double c = PANE_COLS(&ctlbpane);
+    render_text(&ctlbpane, r-1, 0, "CONFIG", MOUSE_EVENT_CONFIG_MODE_ENTER);
+    render_text(&ctlbpane, r-1, c-5, "QUIT", MOUSE_EVENT_QUIT);
 
     // -----------------
     // ---- present ----
@@ -1630,10 +1618,11 @@ render_present:
 
 void render_text(SDL_Rect * pane, double row, double col, char * str, int mouse_event)
 {
-    render_text_ex(pane, row, col, str, mouse_event, PANE_COLS(pane,0), false, 0);
+    render_text_ex(pane, row, col, str, mouse_event, PANE_COLS(pane)-col, false);
 }
 
-void render_text_ex(SDL_Rect * pane, double row, double col, char * str, int mouse_event, int field_cols, bool center, int font_id)
+void render_text_ex(SDL_Rect * pane, double row, double col, char * str, int mouse_event, 
+                    int field_cols, bool center)
 {
     SDL_Surface    * surface; 
     SDL_Texture    * texture; 
@@ -1651,10 +1640,8 @@ void render_text_ex(SDL_Rect * pane, double row, double col, char * str, int mou
         return;
     }
 
-    // verify row and col
-    if (row < 0 || row >= PANE_ROWS(pane,font_id) || 
-        col < 0 || col >= PANE_COLS(pane,font_id)) 
-    {
+    // verify row and col are in range
+    if (row < 0 || row > PANE_ROWS(pane)-1 || col < 0 || col > PANE_COLS(pane)-1) {
         return;
     }
 
@@ -1676,16 +1663,16 @@ void render_text_ex(SDL_Rect * pane, double row, double col, char * str, int mou
         col += (field_cols - slen) / 2;
     }
 
-    // render the text to a surface0
+    // render the text to a surface
     fg_color = (mouse_event != MOUSE_EVENT_NONE ? fg_color_event : fg_color_normal); 
-    surface = TTF_RenderText_Shaded(font[font_id].font, s, fg_color, bg_color);
+    surface = TTF_RenderText_Shaded(font.font, s, fg_color, bg_color);
     if (surface == NULL) { 
         FATAL("TTF_RenderText_Shaded returned NULL\n");
     } 
 
     // determine the display location
-    pos.x = pane->x + col * font[font_id].char_width;
-    pos.y = pane->y + row * font[font_id].char_height;
+    pos.x = pane->x + col * font.char_width;
+    pos.y = pane->y + row * font.char_height;
     pos.w = surface->w;
     pos.h = surface->h;
 
