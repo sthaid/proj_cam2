@@ -317,8 +317,8 @@ event_t          event;
 
 char             config_path[MAX_STR];
 const int        config_version = 21;
-config_t         config[] = { { "wc_define_0",  "test1 73.114.235.71 9991 secret" },
-                              { "wc_define_1",  "test2 192.168.1.121 9990 secret" },
+config_t         config[] = { { "wc_define_0",  "none" },
+                              { "wc_define_1",  "none" },
                               { "wc_define_2",  "none" },
                               { "wc_define_3",  "none" },
                               { "wc_define_4",  "none" },
@@ -342,8 +342,8 @@ config_t         config[] = { { "wc_define_0",  "test1 73.114.235.71 9991 secret
                               { "wc_define_22", "none" },
                               { "wc_define_23", "none" },
                               { "wc_define_24", "none" },
-                              { "wc_select_A", "0"     },
-                              { "wc_select_B", "1"     },
+                              { "wc_select_A", "7"     },
+                              { "wc_select_B", "7"     },
                               { "wc_select_C", "7"     },
                               { "wc_select_D", "7"     },
                               { "zoom",      "N",      },
@@ -944,19 +944,50 @@ void display_handler(void)
         } else if (event.mouse_event >= MOUSE_EVENT_CONFIG_SELECT &&
                    event.mouse_event < MOUSE_EVENT_CONFIG_SELECT + MAX_WC_DEF) {
             int def_idx = event.mouse_event - MOUSE_EVENT_CONFIG_SELECT;
+            char name[MAX_STR];
 
+            // preset the 4 keybd strings to empty
             memset(config_mode.keybd_str_value, 0, sizeof(config_mode.keybd_str_value));
-            sscanf(config_mode.wc_def[def_idx], "%s %s %s %s",
-                   config_mode.keybd_str_value[0],
-                   config_mode.keybd_str_value[1],
-                   config_mode.keybd_str_value[2],
-                   config_mode.keybd_str_value[3]);
 
+            // if the def_idx name is not 'none' then
+            //   set the keybd_str_values to name, ipaddr, port, and passwd of def_idx, so 
+            //    that they can be editted
+            // else if dif_idx > 0   (name == 'none') then
+            //   set the keybd_str_values to "", ipaddr, port, and passwd of the prior def_idx;
+            //    the prior def_idx values are being used as a good guess for a starting
+            //    point of the new values being entered
+            // else  (def_idx == 0 && name == 'none')
+            //   since there is no prior value to use as a starting point set 
+            //    the keybd_str_values each to ""
+            // endif
+            sscanf(config_mode.wc_def[def_idx], "%s", name);
+            if (strcmp(name, "none") != 0) {
+                sscanf(config_mode.wc_def[def_idx], "%s %s %s %s",
+                       config_mode.keybd_str_value[0],
+                       config_mode.keybd_str_value[1],
+                       config_mode.keybd_str_value[2],
+                       config_mode.keybd_str_value[3]);
+            } else if (def_idx > 0) {
+                sscanf(config_mode.wc_def[def_idx-1], "%s %s %s %s",
+                       config_mode.keybd_str_value[0],
+                       config_mode.keybd_str_value[1],
+                       config_mode.keybd_str_value[2],
+                       config_mode.keybd_str_value[3]);
+                strcpy(config_mode.keybd_str_value[0], "");
+            } else {
+               strcpy(config_mode.keybd_str_value[0], "");
+               strcpy(config_mode.keybd_str_value[1], "");
+               strcpy(config_mode.keybd_str_value[2], "");
+               strcpy(config_mode.keybd_str_value[3], "");
+            }
+
+            // set the 4 prompt strings
             config_mode.keybd_str_prompt[0] = "name    ";
             config_mode.keybd_str_prompt[1] = "ipaddr  ";
             config_mode.keybd_str_prompt[2] = "port    ";
             config_mode.keybd_str_prompt[3] = "password";
 
+            // enable config keybd mode, to edit the values
             config_mode.keybd_enabled    = true;
             config_mode.keybd_str_idx = 0;
             config_mode.keybd_def_idx = def_idx;
