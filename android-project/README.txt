@@ -2,31 +2,37 @@
 INTRO
 ==============================
 
-Reference Web Sites
-https://www.libsdl.org/projects/SDL_ttf/
-https://www.libsdl.org/download-2.0.php
-https://wiki.libsdl.org/Android
+Date Sep 15, 2020
 
-- https://wiki.libsdl.org/Android
-- https://fedoramagazine.org/start-developing-android-apps-on-fedora-in-10-minutes/
-- https://fedoramagazine.org/start-developing-android-apps-on-fedora-in-10-minutes/
-- https://developer.android.com/studio/command-line/sdkmanager
-- https://developer.android.com/studio/run/device
-- https://fedoraproject.org/wiki/HOWTO_Setup_Android_Development
+This is a rough guide on building and installing SDL Android Apps.
+This guide's focus is installing the Viewer App, built from the 
+source code in the parent directory.
+
+My development system is Fedora 31.
+My device is Motorola's Moto G Power.
+
+Reference Web Sites
+- SDL
+    https://wiki.libsdl.org/Android
+    https://www.libsdl.org/projects/SDL_ttf/
+    https://www.libsdl.org/download-2.0.php
+- Android
+    https://developer.android.com/studio/command-line/sdkmanager
+    https://developer.android.com/studio/run/device
 
 ==============================
 CONFIGURING THE DEVELOPMENT SYSTEM
 ==============================
 
-Get androidsdk tool, using snap
-- https://snapcraft.io/install/androidsdk/fedora
+Using snap, get androidsdk tool (aka sdkmanager):
+- refer to: https://snapcraft.io/install/androidsdk/fedora
 - install snap
     sudo dnf install snapd
     sudo ln -s /var/lib/snapd/snap /snap
 - install androidsdk
     sudo snap install androidsdk
 
-Using androidsdk  (aka sdkmanager)
+Using androidsdk (aka sdkmanager):
 - https://developer.android.com/studio/command-line/sdkmanager
 - some of the commands
   --install
@@ -50,17 +56,16 @@ Using androidsdk  (aka sdkmanager)
     platform-tools       | 30.0.4       | Android SDK Platform-Tools      | platform-tools/
     platforms;android-30 | 3            | Android SDK Platform 30         | platforms/android-30/
 
-Bash_profile
+Bash_profile:
 - add the following
     # Android
     export PATH=$PATH:$HOME/snap/androidsdk/30/AndroidSDK/ndk/21.3.6528147
     export PATH=$PATH:$HOME/snap/androidsdk/30/AndroidSDK/tools
     export PATH=$PATH:$HOME/snap/androidsdk/30/AndroidSDK/platform-tools
     export ANDROID_HOME=$HOME/snap/androidsdk/30/AndroidSDK
-    export ANDROID_NDK_HOME=/home/haid/snap/androidsdk/30/AndroidSDK/ndk/21.3.6528147
-- XXX TODO later recheck the path because it has 2 of '.' and 'bin'
+    export ANDROID_NDK_HOME=$HOME/snap/androidsdk/30/AndroidSDK/ndk/21.3.6528147
 
-Packages needed
+Install additional packages:
 - java -version                               # ensure java is installed, and check the version
 - sudo yum install ant                        # install Java Build Tool  (ant)
 - sudo yum install java-1.8.0-openjdk-devel   # install java devel (matching the java installed)
@@ -69,7 +74,7 @@ Packages needed
 CONNECTING DEVICE TO DEVEL SYSTEM
 ==============================
 
-Udev rules needed to connect to the Android device over usb
+Udev rule is needed to connect to the Android device over usb:
 - lsusb | grep Moto
   Bus 003 Device 025: ID 22b8:2e81 Motorola PCS moto g power
 - create   /etc/udev/rules.d/90-android.rules
@@ -80,40 +85,40 @@ Enable Developer Mode on your device
 - Settings > About Device:
   - Tap Build Number 7 times
 - Settings > System > Advanced > Developer Options:
-  - Turn on Developer Options using the slider at the top;
-    note that it may already be turned on
-  - Enable USB Debugging
-  - Enable Stay Awake
-- Plug in USB Cable, and when asked to Allow USB Debugging, select OK.
-- use 'adb devices' to confirm
+  - Turn on Developer Options using the slider at the top (may already be on).
+  - Enable USB Debugging.
+  - Enable Stay Awake.
+
+Connect Device to Computer
+- Plug in USB Cable; when asked to Allow USB Debugging, select OK.
+- On comuter, use 'adb devices' to confirm connection to device. 
+  Sample output:
     List of devices attached
     ZY227NX9BT	device
 
 ==============================
-BUILDING A SAMPLE PROGRAM AND INSTALL ON DEVICE
+BUILDING A SAMPLE SDL APP AND INSTALL ON DEVICE
 ==============================
 
-Build a Sample SDL Program, and install on device
+Build a Sample SDL App, and install on device
 - SDL2-2.0.12.tar.gz - download and extract
      https://www.libsdl.org/download-2.0.php
-- Follow instructions to make a test build
-     https://wiki.libsdl.org/Android
+- Instructions to build a test App (refer to https://wiki.libsdl.org/Android):
   $ cd SDL2-2.0.12/build-scripts/
   $ ./androidbuild.sh org.libsdl.testgles ../test/testgles.c
-        To build and install to a device for testing, run the following:
-        cd /home/haid/android/SDL2-2.0.12/build/org.libsdl.testgles
-        ./gradlew installDebug
-  $ cd /home/haid/android/SDL2-2.0.12/build/org.libsdl.testgles
+  $ cd $HOME/android/SDL2-2.0.12/build/org.libsdl.testgles
   $ ./gradlew installDebug
 
-XXX run the pgm
-XXX adb commands to uninstall
+This sample App will be installed as 'Game' App on your device.
+Try running it.
 
 ==============================
-BUILD VIEWER APP - OUTILINE
+BUILD VIEWER APP - OUTILINE OF STEPS
 ==============================
 
-Build the Viewer Program, outiline of steps
+NOTE: Refer to the section below for a script that performs these steps.
+
+Building the Viewer Program:
 - download and extract SDL2-2.0.12.tar.gz
 - create a template for building the viewer
     $ ./androidbuild.sh org.sthaid.viewer stub.c
@@ -137,48 +142,99 @@ Build the Viewer Program, outiline of steps
 BUILD VIEWER APP - USING SHELL SCRIPT
 ==============================
 
-XXX tbd
+First follow the steps in these sections:
+- CONFIGURING THE DEVELOPMENT SYSTEM
+- CONNECTING DEVICE TO DEVEL SYSTEM
+
+Sanity Checks:
+- Be sure to have installed ant and java-x.x.x-openjdk-devel.
+- Verify the following programs are in the search path:
+  ant, adb, ndk-build.
+- Run 'adb devices' and ensure your device is shown, example output:
+    List of devices attached
+    ZY227NX9BT	device
+- In another terminal run 'adb shell logcat -s SDL/APP'. 
+  Debug prints should be shown once the viewer app is built, installed, and run.
+
+Setup the build directory structure:
+- Run do_setup.
+  This should create the SDL2-2.0.12, and SDL2-2.0.12/build/org.sthaid.viewer dirs.
+
+Build and install on your device
+- Run do_build_and_install
+  The installed app name is 'Viewer', with the SDL icon.
 
 ==============================
-DEBUGGING THE APP
+SOME ADB COMMANDS, USED FOR DEVELOPMENT & DEBUGGING
 ==============================
 
-Debugging the App
+Sample adb commands for development & debugging:
 - adb devices                               # lists attached devices
-- adb shell getprop ro.product.cpu.abilist  # get list of ABI supported by the device
 - adb shell logcat -s SDL/APP               # view debug prints
 - adb install -r ./app/build/outputs/apk/debug/app-debug.apk  
                                             # install (usually done by gradle)
 - adb uninstall  org.sthaid.viewer          # uninstall
-
-==============================
-XXX TODO
-==============================
-- check need for jpeg AndroidStatic.mk
-- logout and back in and check my PATH var
-- better step by step istructions,  incorporate abvoe
-- script the build and install
-- cleanup this document
+- adb shell getprop ro.product.cpu.abilist  # get list of ABI supported by the device
 
 ==================================================================================
-==============================  APPENDIX  ========================================
+==============================  MORE INFO  =======================================
 ==================================================================================
+
+==============================
+APPENDIX - SNAP
+==============================
+
+How to install androidsdk tool using snap:
+- refer to: https://snapcraft.io/install/androidsdk/fedora
+- steps
+  - sudo dnf install snapd
+  - sudo ln -s /var/lib/snapd/snap /snap
+  - sudo snap install androidsdk
+
+From 'man snap'
+   The snap command lets you install, configure, refresh and remove snaps.
+   Snaps are packages that work across many different Linux distributions, 
+   enabling secure delivery and operation of the latest apps and utilities.
+
+Documentation
+- man snap
+- snap help
+
+Examples:
+- snap find androidsdk
+    Name        Version  Publisher   Notes  Summary
+    androidsdk  1.0.5.2  quasarrapp  -      The package contains android sdkmanager.
+- snap install androidsdk
 
 ==============================
 APPENDIX - ANDROIDSDK
 ==============================
 
-androidsdk  XXX describe
+Documentation: https://developer.android.com/studio/command-line/sdkmanager
 
-XXX reference snap section below
+Installation:
+- I installed the androidsdk using snap. 
+- The same program (except called sdkmanager) is also found in
+    snap/androidsdk/30/AndroidSDK/tools/bin/sdkmanager 
+  after installing the AndroidSDK.
+- I suggest just using the 'androidsdk' version that was installed using snap.
+
+Description:
+- The sdkmanager is a command line tool that allows you to view, install, update, 
+  and uninstall packages for the Android SDK.
+
+Examples:
+- androidsdk --help
+- androidsdk --list
+- androidsdk --install "platforms;android-30"
 
 ==============================
 APPENDIX - ADB (ANDROID DEBUG BRIDGE)
 ==============================
 
-adb    # Android Debug Bridge
+adb
 - options
-  -d  : use usb device
+  -d  : use usb device  (not needed if just one device is connected)
   -e  : use emulator
 - examples
   adb help
@@ -186,10 +242,8 @@ adb    # Android Debug Bridge
   adb uninstall  org.libsdl.testgles
   adb logcat
   adb shell [<command>]
-  adb shell getprop | grep abi
-  adb shell getprop ro.build.version.sdk
 
-adb shell command examples
+adb shell command examples, run 'adb shell'
 - General Commands
     ls, mkdir, rmdir, echo, cat, touch, ifconfig, df
     top
@@ -224,22 +278,4 @@ adb shell command examples
     getprop ro.product.device
 - Proc Filesystem
     cat /proc/<pid>/cmdline
-
-==============================
-APPENDIX - SNAP
-==============================
-
-XXX describe
-
-help
-- man snap
-- snap help
-
-find
-- snap find androidsdk
-    Name        Version  Publisher   Notes  Summary
-    androidsdk  1.0.5.2  quasarrapp  -      The package contains android sdkmanager.
-
-install
-- snap install <name>
 
