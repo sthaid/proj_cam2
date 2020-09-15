@@ -1,0 +1,49 @@
+--- SDL2-2.0.12/build/org.sthaid.viewer/app/jni/src/Android.mk	2020-09-14 19:51:27.650129668 -0400
++++ new/build/org.sthaid.viewer/app/jni/src/Android.mk	2020-09-13 15:17:46.776566156 -0400
+@@ -5,13 +5,17 @@
+ LOCAL_MODULE := main
+ 
+ SDL_PATH := ../SDL
++SDL_TTF_PATH := ../SDL2_ttf-2.0.15
++JPEG_PATH := ../jpeg8d
+ 
+-LOCAL_C_INCLUDES := $(LOCAL_PATH)/$(SDL_PATH)/include
++LOCAL_C_INCLUDES := $(LOCAL_PATH)/$(SDL_PATH)/include \
++                    $(LOCAL_PATH)/$(SDL_TTF_PATH) \
++                    $(LOCAL_PATH)/$(JPEG_PATH)
+ 
+ # Add your application source files here...
+-LOCAL_SRC_FILES :=  stub.c
++LOCAL_SRC_FILES :=  viewer.c net.c util.c jpeg_decode.c
+ 
+-LOCAL_SHARED_LIBRARIES := SDL2
++LOCAL_SHARED_LIBRARIES := SDL2 SDL2_ttf myjpeg
+ 
+ LOCAL_LDLIBS := -lGLESv1_CM -lGLESv2 -llog
+ 
+--- SDL2-2.0.12/build/org.sthaid.viewer/app/src/main/AndroidManifest.xml	2020-09-14 19:51:27.659129584 -0400
++++ new/build/org.sthaid.viewer/app/src/main/AndroidManifest.xml	2020-09-13 16:10:10.592894075 -0400
+@@ -45,6 +45,8 @@
+     <!-- Allow access to the vibrator -->
+     <uses-permission android:name="android.permission.VIBRATE" />
+ 
++    <uses-permission android:name="android.permission.INTERNET" />
++
+     <!-- if you want to capture audio, uncomment this. -->
+     <!-- <uses-permission android:name="android.permission.RECORD_AUDIO" /> -->
+ 
+@@ -71,6 +73,7 @@
+             android:alwaysRetainTaskState="true"
+             android:launchMode="singleInstance"
+             android:configChanges="orientation|uiMode|screenLayout|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation"
++            android:screenOrientation="landscape"
+             >
+             <intent-filter>
+                 <action android:name="android.intent.action.MAIN" />
+--- SDL2-2.0.12/build/org.sthaid.viewer/app/src/main/res/values/strings.xml	2020-09-14 19:51:27.644129724 -0400
++++ new/build/org.sthaid.viewer/app/src/main/res/values/strings.xml	2020-09-13 19:38:52.284118088 -0400
+@@ -1,3 +1,3 @@
+ <resources>
+-    <string name="app_name">Game</string>
++    <string name="app_name">Viewer</string>
+ </resources>

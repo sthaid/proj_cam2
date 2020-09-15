@@ -1,0 +1,47 @@
+#!/bin/bash
+
+# set directory variables
+TOP=`pwd`
+BUILD=$TOP/SDL2-2.0.12/build/org.sthaid.viewer
+
+# extract the SDL2 src from tar file
+echo "Extracting SDL2-2.0.12.tar.gz"
+tar -xf setup_files/SDL2-2.0.12.tar.gz
+echo
+
+# create a template for building the viewer
+echo "Creating templat build directory ort/sthaid/viewer"
+touch stub.c
+./SDL2-2.0.12/build-scripts/androidbuild.sh org.sthaid.viewer stub.c
+rm stub.c
+echo
+
+# $BUILD/app/jni: add additional subdirs (with source code and Android.mk), for the 
+# additional libraries that are needed, whare are SDL2_ttf-2.0.15 and jpeg8d
+echo "Extractng SDL2_ttf-2.0.15.tar.gz and jpeg8d.tar.gz"
+cd $BUILD/app/jni
+tar -xf $TOP/setup_files/SDL2_ttf-2.0.15.tar.gz
+tar -xf $TOP/setup_files/jpeg8d.tar.gz
+echo
+
+# $BUILD/app/jni/src: add symbolic links to the source code needed to build viewer
+echo "Creating symbolic links for viewer source code"
+cd $BUILD/app/jni/src
+rm stub.c
+ln -s ../../../../../../../viewer.c .
+ln -s ../../../../../../../net.c .
+ln -s ../../../../../../../util.c .
+ln -s ../../../../../../../jpeg_decode.c .
+ln -s ../../../../../../../wc.h .
+echo
+
+# patch the following files:
+# - $BUILD/app/jni/src/Android.mk  
+# - $BUILD/app/src/main/AndroidManifest.xml 
+# - $BUILD/app/src/main/res/values/strings.xml 
+echo "Patching Android.mk, AndroidManifest.xml, and strings.xml"
+cd $TOP/SDL2-2.0.12
+patch -p1 < $TOP/setup_files/setup.patch
+echo
+
+echo "SETUP COMPLETE"

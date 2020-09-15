@@ -1,0 +1,5 @@
+#!/bin/bash
+
+cd SDL2-2.0.12/build/org.sthaid.viewer
+
+./gradlew installDebug

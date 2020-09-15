@@ -3,6 +3,10 @@ INTRO
 ==============================
 
 Reference Web Sites
+https://www.libsdl.org/projects/SDL_ttf/
+https://www.libsdl.org/download-2.0.php
+https://wiki.libsdl.org/Android
+
 - https://wiki.libsdl.org/Android
 - https://fedoramagazine.org/start-developing-android-apps-on-fedora-in-10-minutes/
 - https://fedoramagazine.org/start-developing-android-apps-on-fedora-in-10-minutes/
