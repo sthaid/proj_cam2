@@ -52,7 +52,7 @@
 
 #ifndef ANDROID
 #define FONT_PATH                    "/usr/share/fonts/gnu-free/FreeMonoBold.ttf"
-#define FONT_PTSIZE                  70
+#define FONT_PTSIZE                  50  // XXX tbd
 #else
 #define FONT_PATH                    "/system/fonts/DroidSansMono.ttf"
 #define FONT_PTSIZE                  70
@@ -865,7 +865,9 @@ void display_handler(void)
         } else if (event.mouse_event >= MOUSE_EVENT_WC_ZOOM && 
                    event.mouse_event < MOUSE_EVENT_WC_ZOOM + MAX_WEBCAM) {
             int idx = event.mouse_event - MOUSE_EVENT_WC_ZOOM;
-            CONFIG_ZOOM = (CONFIG_ZOOM == ('A'+idx) ? 'N' : ('A'+idx));
+            CONFIG_ZOOM = (CONFIG_ZOOM == 'N'     ? 'a'+idx :
+                           CONFIG_ZOOM == 'a'+idx ? 'A'+idx :
+                                                    'N');
             CONFIG_WRITE();
 
         } else if (event.mouse_event >= MOUSE_EVENT_WC_NAME &&
@@ -1179,9 +1181,9 @@ void display_handler(void)
     for (i = 0; i < MAX_WEBCAM; i++) {
         int wc_x, wc_y, wc_w, wc_h;
 
-        if (CONFIG_ZOOM >= 'A' && CONFIG_ZOOM <= 'D') {
+        if (CONFIG_ZOOM >= 'a' && CONFIG_ZOOM <= 'd') {
             int wc_zw = (double)(win_width - CTL_WIDTH) / 1.33;
-            if ('A'+i == CONFIG_ZOOM) {
+            if ('a'+i == CONFIG_ZOOM) {
                 wc_x = 0;
                 wc_y = 0;
                 wc_w = wc_zw;
@@ -1192,6 +1194,18 @@ void display_handler(void)
                 wc_w = win_width - CTL_WIDTH - wc_zw;
                 wc_h = (win_height / 3);
                 small_win_count++;
+            }
+        } else if (CONFIG_ZOOM >= 'A' && CONFIG_ZOOM <= 'D') {
+            if ('A'+i == CONFIG_ZOOM) {
+                wc_x = 0;
+                wc_y = 0;
+                wc_w = win_width - CTL_WIDTH;
+                wc_h = win_height;
+            } else {
+                wc_x = 0;
+                wc_y = 0;
+                wc_w = 0;
+                wc_h = 0;
             }
         } else {
             wc_w = (win_width - CTL_WIDTH) / 2;
@@ -1305,6 +1319,12 @@ void display_handler(void)
     for (i = 0; i < MAX_WEBCAM; i++) {
         webcam_t * wc            = &webcam[i];
         char       win_id_str[2] = { 'A'+i, 0 };
+
+        // if this webcam is not to be displayed, because it's pane is zero width
+        // then continue
+        if (wcpane[i].w == 0) {
+            continue;
+        }
 
         // acquire wc mutex
         pthread_mutex_lock(&wc->image_mutex);
@@ -1949,16 +1969,20 @@ void * webcam_thread(void * cx)
             }
 
             // determine the minimum interval that viewer desires the webcam to be sending frames:
-            // - when viewer is not shown (minimized)  use a very long interval
-            // - when wc pane is large use min interval of 0, allowing the webcam to send a frame
-            //   as soon as it is available
-            // - when wc pane is medium set the minimum interval to 150 ms
-            // - when wc pane is small set the minimum interval to 250 ms
             if (win_minimized) {
-                intvl_us = 1000000000;  // 1000 secs
+                intvl_us = 1000000*MS;  // 1000 secs
+            } else if (CONFIG_ZOOM == 'a'+id || CONFIG_ZOOM == 'A'+id) {
+                // this pane is large or largest
+                intvl_us = 0;
+            } else if (CONFIG_ZOOM >= 'A' && CONFIG_ZOOM <= 'D') {
+                // another pane is largest, meaning this pane is not shown
+                intvl_us = 1000000*MS;  // 1000 secs
+            } else if (CONFIG_ZOOM >= 'a' && CONFIG_ZOOM <= 'd') {
+                // another pase is large, meaning this pane is small
+                intvl_us = 200*MS;
             } else {
-                int tmp_zoom = CONFIG_ZOOM;
-                intvl_us = (tmp_zoom == 'A'+id ? 0 : tmp_zoom == 'N' ? 150*MS : 250*MS);
+                // this pane must be medium
+                intvl_us = 200*MS;
             }
 
             // if the minimum interval has changed since the last value sent to webcam then
