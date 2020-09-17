@@ -39,6 +39,7 @@
 #define CONFIG_WC_SELECT(sel_idx)   (config[25+(sel_idx)].value)
 #define CONFIG_ZOOM                 (config[29].value[0])    // A, B, C, D, N
 #define CONFIG_DEBUG                (config[30].value[0])    // N, Y
+#define CONFIG_FONT_PTSZ            (config[31].value)
 
 #ifndef ANDROID 
 #define WIN_WIDTH                   1700
@@ -52,10 +53,10 @@
 
 #ifndef ANDROID
 #define FONT_PATH                    "/usr/share/fonts/gnu-free/FreeMonoBold.ttf"
-#define FONT_PTSIZE                  50  // XXX tbd
+#define FONT_DEFAULT_PTSIZE          "50"
 #else
 #define FONT_PATH                    "/system/fonts/DroidSansMono.ttf"
-#define FONT_PTSIZE                  70
+#define FONT_DEFAULT_PTSIZE          "70"
 #endif
 
 #define PANE_COLS(p)                 ((double)(p)->w / font.char_width)
@@ -83,12 +84,15 @@
 #define MOUSE_EVENT_CONFIG_ACCEPT             141 
 #define MOUSE_EVENT_CONFIG_CANCEL             142
 #define MOUSE_EVENT_CONFIG_SELECT             143       // room for 25 events (MAX_WC_DERS)
-#define MOUSE_EVENT_CONFIG_KEYBD_SHIFT        170
-#define MOUSE_EVENT_CONFIG_KEYBD_BS           171
-#define MOUSE_EVENT_CONFIG_KEYBD_NEXT_STR     172
-#define MOUSE_EVENT_CONFIG_KEYBD_PREV_STR     173
-#define MOUSE_EVENT_CONFIG_KEYBD_ACCEPT       174
-#define MOUSE_EVENT_CONFIG_KEYBD_CANCEL       175
+#define MOUSE_EVENT_CONFIG_FONT_PLUS          170
+#define MOUSE_EVENT_CONFIG_FONT_MINUS         171
+#define MOUSE_EVENT_CONFIG_KEYBD_SHIFT        172
+#define MOUSE_EVENT_CONFIG_KEYBD_BS           173
+#define MOUSE_EVENT_CONFIG_KEYBD_NEXT_STR     174
+#define MOUSE_EVENT_CONFIG_KEYBD_PREV_STR     175
+#define MOUSE_EVENT_CONFIG_KEYBD_ACCEPT       176
+#define MOUSE_EVENT_CONFIG_KEYBD_CANCEL       177
+
 #define MOUSE_EVENT_WC_NAME_LIST              180    // webcam pane ctrls, room for 100 events (4xMAX_WC_DEFS)
 #define MOUSE_EVENT_WC_NAME                   280       // 4 events
 #define MOUSE_EVENT_WC_RES                    285       // 4 events
@@ -316,39 +320,40 @@ webcam_t         webcam[MAX_WEBCAM];
 event_t          event;
 
 char             config_path[MAX_STR];
-const int        config_version = 21;
-config_t         config[] = { { "wc_define_0",  "none" },
-                              { "wc_define_1",  "none" },
-                              { "wc_define_2",  "none" },
-                              { "wc_define_3",  "none" },
-                              { "wc_define_4",  "none" },
-                              { "wc_define_5",  "none" },
-                              { "wc_define_6",  "none" },
-                              { "wc_define_7",  "none" },
-                              { "wc_define_8",  "none" },
-                              { "wc_define_9",  "none" },
-                              { "wc_define_10", "none" },
-                              { "wc_define_11", "none" },
-                              { "wc_define_12", "none" },
-                              { "wc_define_13", "none" },
-                              { "wc_define_14", "none" },
-                              { "wc_define_15", "none" },
-                              { "wc_define_16", "none" },
-                              { "wc_define_17", "none" },
-                              { "wc_define_18", "none" },
-                              { "wc_define_19", "none" },
-                              { "wc_define_20", "none" },
-                              { "wc_define_21", "none" },
-                              { "wc_define_22", "none" },
-                              { "wc_define_23", "none" },
-                              { "wc_define_24", "none" },
-                              { "wc_select_A", "7"     },
-                              { "wc_select_B", "7"     },
-                              { "wc_select_C", "7"     },
-                              { "wc_select_D", "7"     },
-                              { "zoom",      "N",      },
-                              { "debug",     "Y"       },
-                              { "",          ""        } };
+const int        config_version = 23;
+config_t         config[] = { { "wc_define_0",  "none"           },
+                              { "wc_define_1",  "none"           },
+                              { "wc_define_2",  "none"           },
+                              { "wc_define_3",  "none"           },
+                              { "wc_define_4",  "none"           },
+                              { "wc_define_5",  "none"           },
+                              { "wc_define_6",  "none"           },
+                              { "wc_define_7",  "none"           },
+                              { "wc_define_8",  "none"           },
+                              { "wc_define_9",  "none"           },
+                              { "wc_define_10", "none"           },
+                              { "wc_define_11", "none"           },
+                              { "wc_define_12", "none"           },
+                              { "wc_define_13", "none"           },
+                              { "wc_define_14", "none"           },
+                              { "wc_define_15", "none"           },
+                              { "wc_define_16", "none"           },
+                              { "wc_define_17", "none"           },
+                              { "wc_define_18", "none"           },
+                              { "wc_define_19", "none"           },
+                              { "wc_define_20", "none"           },
+                              { "wc_define_21", "none"           },
+                              { "wc_define_22", "none"           },
+                              { "wc_define_23", "none"           },
+                              { "wc_define_24", "none"           },
+                              { "wc_select_A", "7"               },
+                              { "wc_select_B", "7"               },
+                              { "wc_select_C", "7"               },
+                              { "wc_select_D", "7"               },
+                              { "zoom",      "N",                },
+                              { "debug",     "Y"                 },
+                              { "font_ptsz", FONT_DEFAULT_PTSIZE },
+                              { "",          ""                  } };
 
 //
 // prototypes
@@ -455,14 +460,11 @@ int main(int argc, char **argv)
 #endif
 
     // initialize True Type Font
+    // note - the TTF_OpenFont call is made at the begining of display_handler()
+    //        to handle font_ptsz changing during runtime
     if (TTF_Init() < 0) {
         FATAL("TTF_Init failed\n");
     }
-    font.font = TTF_OpenFont(FONT_PATH, FONT_PTSIZE);
-    if (font.font == NULL) {
-        FATAL("failed TTF_OpenFont %s\n", FONT_PATH);
-    }
-    TTF_SizeText(font.font, "X", &font.char_width, &font.char_height);
 
     // create webcam threads 
     for (i = 0; i < MAX_WEBCAM; i++) {
@@ -568,7 +570,7 @@ void display_handler(void)
         (x) == SDL_WINDOWEVENT_CLOSE        ? "SDL_WINDOWEVENT_CLOSE"        : \
                                               "????")
 
-    int         i, j;
+    int         i, j, font_ptsz;
     char        str[MAX_STR];
     char        date_and_time_str[MAX_TIME_STR];
     SDL_Event   ev;
@@ -594,6 +596,27 @@ void display_handler(void)
     } config_mode;
 
     static int  status_select;
+    static int  last_font_ptsz;
+
+    // ----------------------------------------------
+    // ---- if CONFIG_FONT_PTSZ has changed then ----
+    // ---- close and reopen font with new ptsz  ----
+    // ----------------------------------------------
+
+    sscanf(CONFIG_FONT_PTSZ, "%d", &font_ptsz);
+    if (font_ptsz != last_font_ptsz) {
+        TTF_CloseFont(font.font);
+
+        font.font = TTF_OpenFont(FONT_PATH, font_ptsz);
+        if (font.font == NULL) {
+            FATAL("failed TTF_OpenFont %s\n", FONT_PATH);
+        }
+
+        TTF_SizeText(font.font, "X", &font.char_width, &font.char_height);
+
+        DEBUG("font_ptsz is now %d\n", font_ptsz);
+        last_font_ptsz = font_ptsz;
+    }
 
     // ----------------------------------------
     // ---- check if an event has occurred ----
@@ -994,6 +1017,15 @@ void display_handler(void)
             config_mode.keybd_str_idx = 0;
             config_mode.keybd_def_idx = def_idx;
             config_mode.keybd_shift   = false;
+        } else if (event.mouse_event == MOUSE_EVENT_CONFIG_FONT_PLUS) {
+            int font_ptsz;
+            sscanf(CONFIG_FONT_PTSZ, "%d", &font_ptsz);
+            sprintf(CONFIG_FONT_PTSZ, "%d", font_ptsz+1);
+
+        } else if (event.mouse_event == MOUSE_EVENT_CONFIG_FONT_MINUS) {
+            int font_ptsz;
+            sscanf(CONFIG_FONT_PTSZ, "%d", &font_ptsz);
+            sprintf(CONFIG_FONT_PTSZ, "%d", font_ptsz-1);
 
         } else if (event.mouse_event >= MOUSE_EVENT_CONFIG_KEYBD_ASCII_FIRST && 
                    event.mouse_event <= MOUSE_EVENT_CONFIG_KEYBD_ASCII_LAST) {
@@ -1254,8 +1286,13 @@ void display_handler(void)
 
             double r = PANE_ROWS(&configpane);
             double c = PANE_COLS(&configpane);
+
+            render_text(&configpane, r-5, c-2, "F+", MOUSE_EVENT_CONFIG_FONT_PLUS);
+            render_text(&configpane, r-4, c-2, CONFIG_FONT_PTSZ, MOUSE_EVENT_NONE);
+            render_text(&configpane, r-3, c-2, "F-", MOUSE_EVENT_CONFIG_FONT_MINUS);
+
             render_text(&configpane, r-1, c-15, "ACCEPT", MOUSE_EVENT_CONFIG_ACCEPT);
-            render_text(&configpane, r-1, c-6, "CANCEL", MOUSE_EVENT_CONFIG_CANCEL);
+            render_text(&configpane, r-1, c-6,  "CANCEL", MOUSE_EVENT_CONFIG_CANCEL);
         } else {
             static char * row_chars_unshift[4] = { "1234567890",
                                                    "qwertyuiop",
@@ -1305,6 +1342,11 @@ void display_handler(void)
 
             r = PANE_ROWS(&configpane);
             c = PANE_COLS(&configpane);
+
+            render_text(&configpane, r-5, c-2, "F+", MOUSE_EVENT_CONFIG_FONT_PLUS);
+            render_text(&configpane, r-4, c-2, CONFIG_FONT_PTSZ, MOUSE_EVENT_NONE);
+            render_text(&configpane, r-3, c-2, "F-", MOUSE_EVENT_CONFIG_FONT_MINUS);
+
             render_text(&configpane, r-1, c-15, "ACCEPT", MOUSE_EVENT_CONFIG_KEYBD_ACCEPT);
             render_text(&configpane, r-1, c-6, "CANCEL", MOUSE_EVENT_CONFIG_KEYBD_CANCEL);
         }
@@ -1988,7 +2030,7 @@ void * webcam_thread(void * cx)
             // if the minimum interval has changed since the last value sent to webcam then
             // send the new minimum interval
             if (intvl_us != last_intvl_us) {
-                INFO("wc %c: send MSG_TYPE_CMD_SET_MIN_SEND_INTVL_US intvl=%"PRId64" us\n", id_char, intvl_us);
+                DEBUG("wc %c: send MSG_TYPE_CMD_SET_MIN_SEND_INTVL_US intvl=%"PRId64" us\n", id_char, intvl_us);
                 bzero(&msg,sizeof(msg));
                 msg.msg_type = MSG_TYPE_CMD_SET_MIN_SEND_INTVL_US;   
                 msg.u.mt_cmd_min_send_intvl.us = intvl_us;
