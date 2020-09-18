@@ -191,7 +191,10 @@ void *net_accept(void)
         ERROR("failed to open password file, %s\n", strerror(errno));
         goto error_ret;
     }
-    fgets(password_expected, sizeof(password_expected), password_fp);
+    if (fgets(password_expected, sizeof(password_expected), password_fp) == NULL) {
+        ERROR("failed to read password file\n");
+        goto error_ret;
+    }
     len = strlen(password_expected);
     if (len > 0 && password_expected[len-1] == '\n') {
         password_expected[len-1] = '\0';
