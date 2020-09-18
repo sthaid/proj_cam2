@@ -323,9 +323,9 @@ event_t          event;
 
 char             config_path[MAX_STR];
 const int        config_version = 23;
-config_t         config[] = { { "wc_define_0",  "none"           },
-                              { "wc_define_1",  "none"           },
-                              { "wc_define_2",  "none"           },
+config_t         config[] = { { "wc_define_0",  "comproom 73.114.235.71 9991 secret" },   // XXX temp
+                              { "wc_define_1",  "frontyd 73.114.235.71 9992 secret" },
+                              { "wc_define_2",  "garage 73.114.235.71 9993 secret" },
                               { "wc_define_3",  "none"           },
                               { "wc_define_4",  "none"           },
                               { "wc_define_5",  "none"           },
@@ -348,9 +348,9 @@ config_t         config[] = { { "wc_define_0",  "none"           },
                               { "wc_define_22", "none"           },
                               { "wc_define_23", "none"           },
                               { "wc_define_24", "none"           },
-                              { "wc_select_A", "7"               },
-                              { "wc_select_B", "7"               },
-                              { "wc_select_C", "7"               },
+                              { "wc_select_A", "0"               },
+                              { "wc_select_B", "1"               },
+                              { "wc_select_C", "2"               },
                               { "wc_select_D", "7"               },
                               { "zoom",      "N",                },
                               { "debug",     "Y"                 },
