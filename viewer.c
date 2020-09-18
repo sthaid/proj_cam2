@@ -52,10 +52,12 @@
 #endif
 
 #ifndef ANDROID
-#define FONT_PATH                    "/usr/share/fonts/gnu-free/FreeMonoBold.ttf"
+#define FONT_PATH_1                  "/usr/share/fonts/gnu-free/FreeMonoBold.ttf"
+#define FONT_PATH_2                  "/usr/share/fonts/truetype/freefont/FreeMonoBold.ttf"
 #define FONT_DEFAULT_PTSIZE          "50"
 #else
-#define FONT_PATH                    "/system/fonts/DroidSansMono.ttf"
+#define FONT_PATH_1                  "/system/fonts/DroidSansMono.ttf"
+#define FONT_PATH_2                  "no_font_path_2"
 #define FONT_DEFAULT_PTSIZE          "70"
 #endif
 
@@ -607,9 +609,14 @@ void display_handler(void)
     if (font_ptsz != last_font_ptsz) {
         TTF_CloseFont(font.font);
 
-        font.font = TTF_OpenFont(FONT_PATH, font_ptsz);
+        do {
+            font.font = TTF_OpenFont(FONT_PATH_1, font_ptsz);
+            if (font.font) break;
+            font.font = TTF_OpenFont(FONT_PATH_2, font_ptsz);
+            if (font.font) break;
+        } while (0);
         if (font.font == NULL) {
-            FATAL("failed TTF_OpenFont %s\n", FONT_PATH);
+            FATAL("failed TTF_OpenFont\n");
         }
 
         TTF_SizeText(font.font, "X", &font.char_width, &font.char_height);

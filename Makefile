@@ -19,12 +19,12 @@ DEP = $(SRC_VIEWER:.c=.d) $(SRC_WC_SERVER:.c=.d)
 all: $(TARGETS)
 
 viewer: $(SRC_VIEWER:.c=.o)
-	$(CC) -lpthread -ljpeg -lSDL2 -lSDL2_ttf \
-              -o $@ $(SRC_VIEWER:.c=.o)
+	$(CC) -o $@ $(SRC_VIEWER:.c=.o) \
+              -lpthread -ljpeg -lSDL2 -lSDL2_ttf
 
 wc_server: $(SRC_WC_SERVER:.c=.o)
-	$(CC) -lpthread -ljpeg -lusb -lm -lrt \
-              -o $@ $(SRC_WC_SERVER:.c=.o)
+	$(CC) -o $@ $(SRC_WC_SERVER:.c=.o) \
+              -lpthread -ljpeg -lusb -lm -lrt
 
 -include $(DEP)
 

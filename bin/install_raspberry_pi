@@ -15,12 +15,17 @@ for host in $*; do
     echo "----------- INSTALL_RASPBERRY_PI $host  ----------"
 
     echo
-    echo SEND WC_SERVER BIN FILE TO $host
+    echo KILLALL WC_SERVER 
+    ssh pi@$host killall -SIGKILL wc_server 
+
+    echo
+    echo UPDATE BIN FILE TO $host
     ssh pi@$host mkdir -p bin
     scp -p bin/ws_* pi@$host:bin
 
     echo
-    echo SEND WC_SERVER SRC FILE TO $host
+    echo UPDATE PROJ_CAM2 FILES ON $host
+    ssh pi@$host rm -rf proj_cam2
     ssh pi@$host mkdir -p proj_cam2
     scp -p \
       wc_main.c wc_webcam.c net.c util.c jpeg_decode.c temper.c wc.h Makefile \
@@ -30,20 +35,13 @@ for host in $*; do
     echo CREATE PASSWORD FILE ON $host
     echo $password | ssh pi@$host cat \> proj_cam2/password
 
-    echo
-    echo KILLALL WC_SERVER 
-    ssh pi@$host killall -SIGKILL wc_server 
-
     echo 
     echo BUILD 
     ssh pi@$host "cd proj_cam2; make wc_server"
 
     echo
-    echo "START WC_SERVER"
+    echo "START AND QUERY WC_SERVER"
     ssh pi@$host  "cd proj_cam2; ./wc_server < /dev/null > /dev/null 2>&1 &"
-
-    echo
-    echo "QUERY WC_SERVER"
     ssh pi@$host  "ps -f -C wc_server"
 done
 
