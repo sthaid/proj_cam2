@@ -981,9 +981,6 @@ void * cam_thread(void * cx)
                              curr_gs, curr_gs_w, curr_gs_h,
                              &motion, &brightness);
 
-            // XXX 
-            motion = true;
-
             // if motion detected within the past 1 seconds then 
             // add all FRAME_COMPARE_INTERVAL entries in new_frame_array to the proc_frame_array
             if (motion) {
