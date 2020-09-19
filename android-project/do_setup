@@ -2,7 +2,18 @@
 
 # set directory variables
 TOP=`pwd`
-BUILD=$TOP/SDL2-2.0.12/build/org.sthaid.viewer
+SDL_DIR=$TOP/SDL2-2.0.12
+BUILD=$SDL_DIR/build/org.sthaid.viewer
+
+# if SDL_DIR exists it must be removed
+if [ -d $SDL_DIR ]; then
+  read -p "$SDL_DIR exists, remove and proceed with setyp (y/n)? " yn
+  if [ "$yn" != y ]; then
+    echo ABORT
+    exit 1
+  fi
+  rm -rf $SDL_DIR
+fi
 
 # extract the SDL2 src from tar file
 echo "Extracting SDL2-2.0.12.tar.gz"
@@ -10,7 +21,7 @@ tar -xf setup_files/SDL2-2.0.12.tar.gz
 echo
 
 # create a template for building the viewer
-echo "Creating templat build directory ort/sthaid/viewer"
+echo "Creating template build directory org.sthaid.viewer"
 touch stub.c
 ./SDL2-2.0.12/build-scripts/androidbuild.sh org.sthaid.viewer stub.c
 rm stub.c
