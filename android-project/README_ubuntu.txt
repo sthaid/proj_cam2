@@ -88,3 +88,30 @@ BUILD ANDROID VIEWER APP
 
 Build result should be here:
   ./SDL2-2.0.12/build/org.sthaid.viewer/app/build/outputs/apk/debug/app-debug.apk
+
+==============================
+INSTALL ANDROID VIEWER APP ON ANDROID DEVICE
+==============================
+
+Ensure the Host is not using the Android USB Device
+- if the host has adb installed, then 'adb kill-server'
+
+On Android Device
+- developer mode must be enabled
+- USB debugging must be enabled
+- Developer Options Setup screen should be visible, because you'll need
+  to Authorize the Ubuntu Guest
+
+Use Hypervisor to Redirect Android USB Device to the Ubuntu Guest. 
+Note - I had trouble with this step, my Ubuntu guest was being shutdown by the
+       KVM Hypervisor. But it did eventually work. I don't know what the problem was
+       or exactly what I did to eventually redirect the USB device.
+
+Run 'adb devices' in Ubuntu guest to verify device connection. 
+Output shoud be like:
+       List of devices attached
+       ZY227NX9BT	device
+
+Assuming the device is correctly attached, install the Viewer App on the device:
+  cd $HOME/proj/proj_cam2/android-project
+  ./do_install
