@@ -5,12 +5,12 @@ Android Viewer App on an Ubuntu Guest.
 INSTALLING UBUNTU GUEST
 ==============================
 
-Ddownload ubuntu from here: https://ubuntu.com/download/desktop
+Download ubuntu from here: https://ubuntu.com/download/desktop
 You should get a file such as: ubuntu-20.04.1-desktop-amd64.iso.
 
 Install Ubuntu using your Hypervisor. Any hypervisor should work, I use KVM.
 
-After installation completes and your logged in to Ubuntu ...
+After installation completes and your logged in to Ubuntu, do the following:
 
 Set your Display Resolution
 - right click the background, and choose Display Settings
@@ -76,7 +76,7 @@ BUILD ANDROID VIEWER APP
   cd $HOME
   echo 'export ANDROID_NDK_HOME=$HOME/androidsdk/ndk/21.3.6528147' >> .profile
   echo 'export ANDROID_HOME=$HOME/androidsdk' >> .profile
-  echo PATH='$HOME/androidsdk/platform-tools:$PATH' >> .profile
+  echo 'export PATH=$HOME/androidsdk/platform-tools:$PATH' >> .profile
   source .profile
 
 # setup the viewer app build directory
