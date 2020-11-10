@@ -7,6 +7,12 @@
 #include <linux/videodev2.h>
 
 //
+// notes
+//
+//  v4l2-ctl --list-formats-ext
+//
+
+//
 // defines
 //
 
@@ -634,6 +640,7 @@ try_again:
     // if already initialized, then perform uninitialize
     if (cam_fd > 0) {
         close(cam_fd);
+	sleep(5);
         for (i = 0; i < MAX_BUFMAP; i++) {
             if (bufmap[i].addr != NULL) {
                 munmap(bufmap[i].addr, bufmap[i].length);

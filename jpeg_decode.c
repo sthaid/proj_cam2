@@ -183,6 +183,8 @@ void jpeg_decode_output_message_override(j_common_ptr cinfo)
     char buffer[JMSG_LENGTH_MAX];
 
     (*cinfo->err->format_message)(cinfo, buffer);
-    ERROR("%s\n", buffer);
+    if (strstr(buffer, "extraneous bytes before marker") == NULL) {
+    	ERROR("%s\n", buffer);
+    }
 }
 
