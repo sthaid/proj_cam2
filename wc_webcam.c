@@ -904,7 +904,7 @@ void * cam_thread(void * cx)
             buffer.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
             buffer.memory = V4L2_MEMORY_MMAP;
             if (ioctl(cam_fd, VIDIOC_DQBUF, &buffer) < 0) {
-                if (errno == EAGAIN && count++ < 50) {
+                if (errno == EAGAIN && count++ < 200) {
                     usleep(50*MS);
                     continue;
                 }
