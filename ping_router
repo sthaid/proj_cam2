@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# add this to /etc/rc/local, if needed:
+#      /home/pi/proj_cam2/ping_router </dev/null >/dev/null &
+
+while [ 1 = 1 ]; do
+  ping -i 10 192.168.1.1
+  sleep 10
+done
